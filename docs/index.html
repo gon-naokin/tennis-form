@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>サーブ フォームチェック | テニス班</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&display=swap">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<header class="top">
+  <div class="container">
+    <p class="eyebrow">テニス班 · 試作版</p>
+    <h1>サーブ フォームチェック</h1>
+    <p class="lead">動画から骨格を読み取り、肘や膝の角度を数字で見られます。</p>
+  </div>
+</header>
+
+<main class="container">
+  <p class="msg" id="msg" role="alert" hidden></p>
+
+  <div class="bar">
+    <span class="bar-label" id="hand-label">利き手</span>
+    <div class="seg" id="hand" role="group" aria-labelledby="hand-label">
+      <button type="button" class="chip" data-hand="right" aria-pressed="true">右</button>
+      <button type="button" class="chip" data-hand="left" aria-pressed="false">左</button>
+    </div>
+  </div>
+
+  <section class="card" id="start">
+    <h2>動画を選ぶ</h2>
+    <p>サーブを 1〜2 本、10〜15 秒ほど撮った動画を選んでください。</p>
+    <button type="button" class="btn primary big" id="pick">動画を選ぶ</button>
+    <p class="muted small">動画はこの端末の中だけで解析します。どこにも送信・保存されません。</p>
+    <details class="tips">
+      <summary>うまく読み取れる撮り方</summary>
+      <ul>
+        <li>スマホを固定して、真横（または真後ろ）から撮る</li>
+        <li>スマホは縦向きにして、頭の上に伸ばした腕から足元まで全身を入れる</li>
+        <li>映るのは 1 人だけにする</li>
+        <li>明るい場所で、体と背景の色がはっきり分かれるようにする</li>
+        <li>できればスロー撮影にすると、速い腕の動きも読み取りやすい</li>
+      </ul>
+    </details>
+  </section>
+
+  <div id="work" hidden>
+    <div class="stages" id="stages"></div>
+    <p class="muted small center" id="align-note" hidden></p>
+
+    <div id="panels" hidden>
+      <section class="card" aria-label="再生の操作">
+        <div class="row keys">
+          <button type="button" class="btn" id="jump-trophy" data-ctl aria-pressed="false">トロフィーポーズ</button>
+          <button type="button" class="btn" id="jump-impact" data-ctl aria-pressed="false">インパクト</button>
+        </div>
+        <p class="muted small" id="serve-note" hidden>サーブの動きを自動では見つけられませんでした。インパクトの瞬間までコマ送りして、動画の下の「いまの位置をインパクトにする」を押してください。</p>
+        <div class="row play">
+          <button type="button" class="btn" id="prev" data-ctl aria-label="1 コマ戻る">◀ コマ</button>
+          <button type="button" class="btn primary" id="play" data-ctl>▶ 再生</button>
+          <button type="button" class="btn" id="next" data-ctl aria-label="1 コマ進む">コマ ▶</button>
+        </div>
+        <div class="row seek">
+          <input type="range" id="seek" min="0" max="1" step="0.001" value="0" data-ctl aria-label="再生位置">
+          <output id="time" for="seek">0.00 / 0.00 秒</output>
+        </div>
+        <div class="row opts">
+          <span class="bar-label" id="rate-label">速さ</span>
+          <div class="seg" id="rates" role="group" aria-labelledby="rate-label"></div>
+          <label class="check"><input type="checkbox" id="show-pose" checked> 骨格を表示</label>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2 id="table-title">角度の数値</h2>
+        <div class="table-wrap">
+          <table class="metrics" id="metrics" aria-labelledby="table-title"></table>
+        </div>
+        <p class="muted small" id="table-note"></p>
+      </section>
+
+      <section class="card">
+        <div class="chart-head">
+          <h2><label for="metric">動きの変化</label></h2>
+          <select id="metric"></select>
+          <div class="seg" id="zoom" role="group" aria-label="グラフの範囲">
+            <button type="button" class="chip" data-zoom="serve" aria-pressed="true">サーブ前後</button>
+            <button type="button" class="chip" data-zoom="all" aria-pressed="false">全体</button>
+          </div>
+        </div>
+        <div class="legend" id="legend">
+          <span class="key key-a"><i class="sw col-a"></i>A <b class="val-a">—</b></span>
+          <span class="key key-b" hidden><i class="sw col-b"></i>B <b class="val-b">—</b></span>
+          <span class="at"></span>
+        </div>
+        <svg class="chart" id="chart" role="img" aria-label="角度の時間変化"></svg>
+        <p class="muted small">グラフをなぞると、その位置に動画が移動します。</p>
+      </section>
+    </div>
+
+    <div class="row actions">
+      <button type="button" class="btn" id="add">＋ 比べる動画を追加</button>
+    </div>
+  </div>
+
+  <input type="file" id="file" accept="video/*" hidden>
+
+  <footer class="foot">
+    <p>数値は 1 台のカメラの映像から推定したものです。撮る角度によって変わるので、同じ条件で撮った動画どうしを比べる目安として使ってください。</p>
+  </footer>
+</main>
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
