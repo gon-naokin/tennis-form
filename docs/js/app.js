@@ -5,7 +5,7 @@ import {
   METRICS, BONES, JOINTS, LM, armOf, toPoints, buildSeries, findServes, serveAt,
   valueAt, poseAt, nearestIndex, frameStep, missingTimes,
 } from './pose-math.js';
-import { evaluateServe, summarize } from './coaching.js';
+import { evaluateServe, summarize, VIEWS } from './coaching.js';
 import { LineChart } from './chart.js';
 
 const MP_VERSION = '0.10.14';
@@ -51,6 +51,7 @@ const dom = {
   pick: $('#pick'),
   add: $('#add'),
   hand: $('#hand'),
+  view: $('#view'),
   play: $('#play'),
   prev: $('#prev'),
   next: $('#next'),
@@ -75,6 +76,7 @@ const dom = {
 
 const state = {
   hand: readPref('hand') === 'left' ? 'left' : 'right',
+  view: readPref('view') in VIEWS ? readPref('view') : 'side', // 撮った向き（横から / 後ろから）
   rate: 0.25,
   playing: false,
   busy: false,
@@ -87,6 +89,7 @@ const state = {
 /** @type {[Clip | null, Clip | null]} */
 const clips = [null, null];
 let pendingSlot = 0;
+let proReference = null;  // プロの参考値（data/pro-reference.json）。読めなければ null のまま、参考値なしで動く
 let liveCells = [];       // 表のうち、再生位置に合わせて書き換えるセル
 let lastSeekTime = -1;
 
@@ -809,6 +812,9 @@ function render() {
     node.setAttribute('aria-pressed', String(node.dataset.hand === state.hand));
     node.disabled = state.busy;
   }
+  for (const node of $$('button', dom.view)) {
+    node.setAttribute('aria-pressed', String(node.dataset.view === state.view));
+  }
 
   renderAlignNote();
   renderTransport();
@@ -859,6 +865,19 @@ function node(tag, className, text) {
   return n;
 }
 
+// その項目の、プロの参考値の 1 行。「男子 98°（92〜102°）・女子 102°（97〜107°）」
+function proLine(result) {
+  const groups = proReference?.views?.[state.view];
+  if (!groups) return '';
+  const fmt = (v) => `${v.toFixed(result.digits)}${result.unit}`;
+  const parts = [];
+  for (const [id, label] of [['men', '男子'], ['women', '女子']]) {
+    const c = groups[id]?.checks?.[result.id];
+    if (c) parts.push(`${label} ${fmt(c.p50)}（${fmt(c.p25)}〜${fmt(c.p75)}）`);
+  }
+  return parts.length ? `プロ　${parts.join('・')}` : '';
+}
+
 // 目安と比べた結果（定型コメント）を並べる
 function renderCoach() {
   const a = clips[0]?.ready ? clips[0] : null;
@@ -877,7 +896,7 @@ function renderCoach() {
     return;
   }
 
-  const results = evaluateServe({ frames: clip.frames, series: clip.series, serve: clip.serve });
+  const results = evaluateServe({ frames: clip.frames, series: clip.series, serve: clip.serve, view: state.view });
   const { measured, good } = summarize(results);
   dom.coachSummary.textContent = measured
     ? `測れた ${measured} 項目のうち、${good} 項目が目安どおりです。`
@@ -908,6 +927,8 @@ function renderCoach() {
       if (r.status !== 'na') title.append(node('span', 'coach-value', r.valueText));
       title.append(node('span', 'coach-target', r.target));
       body.append(title, node('p', 'coach-text', r.text));
+      const pro = proLine(r);
+      if (pro) body.append(node('p', 'coach-pro', pro));
       li.append(status, body);
       list.append(li);
     }
@@ -1122,6 +1143,14 @@ dom.hand.addEventListener('click', (e) => {
   render();
 });
 
+dom.view.addEventListener('click', (e) => {
+  const view = e.target.closest('button')?.dataset.view;
+  if (!view || view === state.view) return;
+  state.view = view;
+  writePref('view', view);
+  render();
+});
+
 dom.play.addEventListener('click', togglePlay);
 dom.prev.addEventListener('click', () => step(-1));
 dom.next.addEventListener('click', () => step(1));
@@ -1178,6 +1207,12 @@ document.addEventListener('keydown', (e) => {
 });
 
 window.addEventListener('resize', () => { for (const c of clips) if (c) c.dirty = true; });
+
+// プロの参考値は、読めたら表示に足す（読めなくてもアプリは動く）
+fetch('data/pro-reference.json')
+  .then((res) => (res.ok ? res.json() : null))
+  .then((data) => { proReference = data; renderCoach(); })
+  .catch(() => {});
 
 render();
 requestAnimationFrame(tick);

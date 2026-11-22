@@ -29,6 +29,11 @@
       <button type="button" class="chip" data-hand="right" aria-pressed="true">右</button>
       <button type="button" class="chip" data-hand="left" aria-pressed="false">左</button>
     </div>
+    <span class="bar-label" id="view-label">撮った向き</span>
+    <div class="seg" id="view" role="group" aria-labelledby="view-label">
+      <button type="button" class="chip" data-view="side" aria-pressed="true">横から</button>
+      <button type="button" class="chip" data-view="back" aria-pressed="false">後ろから</button>
+    </div>
   </div>
 
   <section class="card" id="start">
@@ -39,7 +44,8 @@
     <details class="tips">
       <summary>うまく読み取れる撮り方</summary>
       <ul>
-        <li>スマホを固定して、真横（または真後ろ）から撮る</li>
+        <li>スマホを固定して、真横（ベースラインの延長）か真後ろから撮り、上の「撮った向き」を合わせる</li>
+        <li>膝の曲がりを見たいときは後ろから。横からだと膝がカメラの方へ曲がるので、浅く見える</li>
         <li>スマホは縦向きにして、頭の上に伸ばした腕から足元まで全身を入れる</li>
         <li>映るのは 1 人だけにする</li>
         <li>明るい場所で、体と背景の色がはっきり分かれるようにする</li>
@@ -85,7 +91,8 @@
         </div>
         <p class="coach-summary" id="coach-summary"></p>
         <div class="coach-list" id="coach-list"></div>
-        <p class="muted small">目安は一般的な指導内容をもとにした仮の値で、真横から撮った動画を前提にしています。気づきのきっかけとして使ってください。</p>
+        <p class="muted small">「プロ」は 2024 年全米オープンの選手約 100 人の値で、かっこ内は半数の選手が入る範囲です。中継映像からの推定なので、目安として見てください。目安の数値は、このプロの値にゆとりを足して決めています。</p>
+        <p class="muted small">プロの値の出典：Wang ほか「<a href="https://github.com/jasnwag/tennis_serve_dataset" target="_blank" rel="noopener">Large-Scale 3D Pose Estimation of Professional Tennis Serves from Broadcast Video</a>」（2026、CC BY 4.0）のデータを集計。</p>
       </section>
 
       <section class="card">

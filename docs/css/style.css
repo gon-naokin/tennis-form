@@ -131,7 +131,8 @@ button.link:disabled { opacity: .45; cursor: not-allowed; }
 }
 .chip[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); }
 
-.bar { display: flex; align-items: center; gap: 10px; }
+.bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
+.bar .seg { margin-right: 8px; }
 .bar-label { font-weight: 700; font-size: .9rem; color: var(--muted); }
 
 .row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
@@ -222,6 +223,8 @@ button.link:disabled { opacity: .45; cursor: not-allowed; }
 .coach-target { font-size: .78rem; color: var(--muted); }
 .coach-text { font-size: .92rem; }
 .coach-item.is-na .coach-text { color: var(--muted); }
+.coach-pro { font-size: .82rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.foot a, .card a { color: var(--accent); }
 
 /* 数値の表 */
 .table-wrap { overflow-x: auto; }

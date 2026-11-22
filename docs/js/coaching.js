@@ -1,12 +1,23 @@
 // サーブの「見直しポイント」を、角度の目安から定型文で出す。
 // 画面や動画には触れない純粋な計算だけを置く（Node でそのままテストできる）。
 //
-// 目安の数値は、一般的な指導内容をもとにした仮の値。班の教え方に合わせて GUIDE を書き換える。
-// 真横から撮った動画を前提にしている（斜めや正面からだと角度が小さく出る項目がある）。
+// 目安の数値は、プロの公開データ（docs/data/pro-reference.json）の分布に、ゆとりを足して決めている。
+// 班の教え方に合わせて GUIDE を書き換えればよい。
+//
+// 膝の曲げは、撮った向きで見え方が大きく変わる。サーブの構えは体が横を向くので、膝は横（サイドフェンス側）へ
+// 曲がる。後ろから撮ると曲がりがそのまま見え、横（ベースラインの延長）から撮るとカメラの方へ曲がるので浅く見える。
+// プロの中央値は、後ろから約 100°、横から約 145°。
+//
+// 以前あった「トロフィーポーズでの利き腕の肘の高さ」は外した。膝が最も曲がった瞬間のプロの値が目安（80° 以上）に
+// まったく届かず（中央値 20〜65°）、この瞬間に肘が肩の高さにあるという前提が成り立たなかったため。
+
+export const VIEWS = { side: '横から', back: '後ろから' };
 
 export const GUIDE = {
-  trophyKnee: { good: 140, shallow: 160 },   // 深く曲げた側の膝の角度（小さいほど深い）
-  trophyElbow: { good: 80, low: 60 },        // 利き腕の脇の開き（肘が肩の高さで約 90°）
+  trophyKnee: {                              // 深く曲げた側の膝の角度（小さいほど深い）
+    side: { good: 155, shallow: 165 },       //   プロ：145°（半数が 139〜151°）
+    back: { good: 120, shallow: 140 },       //   プロ：100°（半数が 92〜107°）
+  },
   trophyToss: { good: 130 },                 // トスを上げた腕の上がり
   impactElbow: { good: 160, bent: 140 },     // 利き腕の肘の角度
   impactReach: { good: 1.2, low: 1.1 },      // 手首の高さ（足首から鼻までの高さの何倍か）
@@ -33,8 +44,8 @@ function maxAround(frames, values, index, window) {
 }
 
 /**
- * チェック項目。measure が値（測れなければ null）を返し、judge がその値から判定と文を返す。
- * status は 'good'（目安どおり）か 'hint'（見直しポイント）。
+ * チェック項目。measure が値（測れなければ null）を返し、judge がその値と撮った向きから判定と文を返す。
+ * status は 'good'（目安どおり）か 'hint'（見直しポイント）。target は文字列か、撮った向きを受け取る関数。
  */
 export const CHECKS = [
   {
@@ -43,31 +54,15 @@ export const CHECKS = [
     title: '膝の曲げ',
     unit: '°',
     digits: 0,
-    target: `目安 ${GUIDE.trophyKnee.good}° 以下`,
+    target: (view) => `目安 ${GUIDE.trophyKnee[view].good}° 以下${view === 'side' ? '（横からは浅く見えます）' : ''}`,
     measure: ({ series, serve }) =>
       serve.trophy == null ? null : smaller(series.kneeL[serve.trophy], series.kneeR[serve.trophy]),
-    judge: (v) => {
-      if (v <= GUIDE.trophyKnee.good) return { status: 'good', text: '膝を曲げて、打つ前の「ため」を作れています。' };
-      if (v <= GUIDE.trophyKnee.shallow) {
+    judge: (v, view) => {
+      if (v <= GUIDE.trophyKnee[view].good) return { status: 'good', text: '膝を曲げて、打つ前の「ため」を作れています。' };
+      if (v <= GUIDE.trophyKnee[view].shallow) {
         return { status: 'hint', text: '膝の曲げが浅めです。もう少し沈み込むと、脚の力をボールに伝えやすくなります。' };
       }
       return { status: 'hint', text: '膝がほとんど伸びたままです。トスを上げながら膝を曲げ、下から伸び上がる動きを入れてみましょう。' };
-    },
-  },
-  {
-    id: 'trophy-elbow',
-    moment: 'trophy',
-    title: '利き腕の肘の高さ',
-    unit: '°',
-    digits: 0,
-    target: `目安 ${GUIDE.trophyElbow.good}° 以上`,
-    measure: ({ series, serve }) => (serve.trophy == null ? null : series.shoulder[serve.trophy]),
-    judge: (v) => {
-      if (v >= GUIDE.trophyElbow.good) return { status: 'good', text: '肘が肩の高さまで上がっています。' };
-      if (v >= GUIDE.trophyElbow.low) {
-        return { status: 'hint', text: '肘が肩より少し下がっています。肩の高さまで上げると、ラケットを振り上げやすくなります。' };
-      }
-      return { status: 'hint', text: '肘が下がっています。脇を開けて、肘を肩の高さまで上げてみましょう。' };
     },
   },
   {
@@ -137,10 +132,10 @@ export const CHECKS = [
 
 /**
  * サーブ 1 本を評価する。
- * @param {{ frames: {t:number}[], series: Record<string,(number|null)[]>, serve: {impact:number, trophy:number|null} }} input
- * @returns {{ id, moment, momentLabel, title, target, value, valueText, status: 'good'|'hint'|'na', text }[]}
+ * @param {{ frames: {t:number}[], series: Record<string,(number|null)[]>, serve: {impact:number, trophy:number|null}, view?: 'side'|'back' }} input
+ * @returns {{ id, moment, momentLabel, title, target, unit, digits, value, valueText, status: 'good'|'hint'|'na', text }[]}
  */
-export function evaluateServe({ frames, series, serve }) {
+export function evaluateServe({ frames, series, serve, view = 'side' }) {
   return CHECKS.map((check) => {
     const value = check.measure({ frames, series, serve });
     const base = {
@@ -148,7 +143,9 @@ export function evaluateServe({ frames, series, serve }) {
       moment: check.moment,
       momentLabel: MOMENT_LABEL[check.moment],
       title: check.title,
-      target: check.target,
+      target: typeof check.target === 'function' ? check.target(view) : check.target,
+      unit: check.unit,
+      digits: check.digits,
     };
     if (value == null) {
       const text = check.moment === 'trophy' && serve.trophy == null
@@ -156,7 +153,7 @@ export function evaluateServe({ frames, series, serve }) {
         : '測れませんでした。体の一部が映っていないか、うまく読み取れていません。';
       return { ...base, value: null, valueText: '—', status: 'na', text };
     }
-    return { ...base, value, valueText: `${value.toFixed(check.digits)}${check.unit}`, ...check.judge(value) };
+    return { ...base, value, valueText: `${value.toFixed(check.digits)}${check.unit}`, ...check.judge(value, view) };
   });
 }
 
