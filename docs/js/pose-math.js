@@ -27,6 +27,7 @@ export const JOINTS = [0, 11, 12, 13, 14, 15, 16, 23, 24, 25, 26, 27, 28];
 export const METRICS = [
   { id: 'elbow', label: '肘の角度', hint: '利き腕の肩・肘・手首。180°でまっすぐ', unit: '°', digits: 0 },
   { id: 'shoulder', label: '脇の開き', hint: '利き腕の肘・肩・腰。腕が真上で約 180°', unit: '°', digits: 0 },
+  { id: 'toss', label: 'トスの腕の上がり', hint: '反対の腕の肘・肩・腰。腕が真上で約 180°', unit: '°', digits: 0 },
   { id: 'kneeL', label: '左膝の角度', hint: '腰・膝・足首。小さいほど深く曲がっている', unit: '°', digits: 0 },
   { id: 'kneeR', label: '右膝の角度', hint: '腰・膝・足首。小さいほど深く曲がっている', unit: '°', digits: 0 },
   { id: 'lean', label: '体の傾き', hint: '腰から肩への線が垂直から傾いている角度', unit: '°', digits: 0 },
@@ -45,6 +46,11 @@ export function armOf(hand) {
   return hand === 'left'
     ? { shoulder: LM.L_SHOULDER, elbow: LM.L_ELBOW, wrist: LM.L_WRIST, hip: LM.L_HIP }
     : { shoulder: LM.R_SHOULDER, elbow: LM.R_ELBOW, wrist: LM.R_WRIST, hip: LM.R_HIP };
+}
+
+/** 利き手と反対の腕（トスを上げる腕） */
+export function otherArmOf(hand) {
+  return armOf(hand === 'left' ? 'right' : 'left');
 }
 
 /** MediaPipe の正規化座標（0〜1）を等方単位の点に直す */
@@ -72,13 +78,16 @@ function kneeAngle(pts, hip, knee, ankle) {
 
 /** 1 フレーム分の数値。計算できない項目は null */
 export function computeMetrics(pts, hand) {
-  const out = { elbow: null, shoulder: null, kneeL: null, kneeR: null, lean: null, reach: null };
+  const out = Object.fromEntries(METRICS.map((m) => [m.id, null]));
   if (!pts) return out;
   const arm = armOf(hand);
   const S = pts[arm.shoulder], E = pts[arm.elbow], W = pts[arm.wrist], H = pts[arm.hip];
 
   if (seen(S) && seen(E) && seen(W)) out.elbow = angleAt(S, E, W);
   if (seen(E) && seen(S) && seen(H)) out.shoulder = angleAt(E, S, H);
+  const other = otherArmOf(hand);
+  const OS = pts[other.shoulder], OE = pts[other.elbow], OH = pts[other.hip];
+  if (seen(OE) && seen(OS) && seen(OH)) out.toss = angleAt(OE, OS, OH);
   out.kneeL = kneeAngle(pts, LM.L_HIP, LM.L_KNEE, LM.L_ANKLE);
   out.kneeR = kneeAngle(pts, LM.R_HIP, LM.R_KNEE, LM.R_ANKLE);
 

@@ -16,6 +16,10 @@
   --axis: #c3c2b7;
   --danger: #b42318;
   --danger-soft: #fdecea;
+  --good: #0f5f45;        /* 「良い」のラベル */
+  --good-soft: #dff1e4;
+  --hint: #7a4b00;        /* 「見直し」のラベル */
+  --hint-soft: #ffeec4;
   --radius: 18px;
   --shadow: 3px 3px 0 var(--ink);
   color-scheme: light;
@@ -38,6 +42,10 @@
     --axis: #383835;
     --danger: #ff8a80;
     --danger-soft: #3a1c19;
+    --good: #7fd9b0;
+    --good-soft: #1a2b24;
+    --hint: #f2c46b;
+    --hint-soft: #3a2c10;
     color-scheme: dark;
   }
 }
@@ -185,6 +193,36 @@ button.link:disabled { opacity: .45; cursor: not-allowed; }
 .clip-foot .link { font-size: .85rem; margin-left: auto; }
 .clip-note { flex: 1 1 100%; }
 
+/* フォームのチェック（定型コメント） */
+.coach-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
+.coach-head h2 { margin-right: auto; }
+.coach-summary { font-weight: 700; }
+.coach-list { display: grid; gap: 14px; }
+.coach-list:empty { display: none; }
+.coach-group { display: grid; gap: 6px; }
+.coach-group-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.coach-group-head h3 { margin: 0; font-size: .9rem; font-weight: 700; color: var(--muted); }
+.coach-group-head .link { font-size: .85rem; flex: none; white-space: nowrap; }
+.coach-items { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.coach-item {
+  display: grid; grid-template-columns: 5.2em 1fr; gap: 10px; align-items: start;
+  padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px;
+}
+.coach-status {
+  justify-self: start; padding: 2px 8px; border-radius: 999px;
+  font-size: .8rem; font-weight: 700; white-space: nowrap;
+  background: var(--surface-2); color: var(--muted);
+}
+.coach-item.is-good .coach-status { background: var(--good-soft); color: var(--good); }
+.coach-item.is-hint .coach-status { background: var(--hint-soft); color: var(--hint); }
+.coach-body { display: grid; gap: 2px; min-width: 0; }
+.coach-title { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; }
+.coach-name { font-weight: 700; }
+.coach-value { font-weight: 700; font-variant-numeric: tabular-nums; }
+.coach-target { font-size: .78rem; color: var(--muted); }
+.coach-text { font-size: .92rem; }
+.coach-item.is-na .coach-text { color: var(--muted); }
+
 /* 数値の表 */
 .table-wrap { overflow-x: auto; }
 .metrics { width: 100%; border-collapse: collapse; }
@@ -231,4 +269,5 @@ button.link:disabled { opacity: .45; cursor: not-allowed; }
   .container { padding: 0 12px; }
   .card { padding: 14px 12px; }
   .row.play > .btn, .row.keys > .btn { font-size: .95rem; }
+  .coach-item { grid-template-columns: 1fr; gap: 6px; }  /* 狭い画面では判定を文の上に置く */
 }

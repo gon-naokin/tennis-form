@@ -6,52 +6,7 @@ import {
   valueAt, poseAt, nearestIndex, frameStep, toPoints, missingTimes,
 } from '../docs/js/pose-math.js';
 
-const near = (actual, expected, tol, msg) =>
-  assert.ok(Math.abs(actual - expected) <= tol, `${msg ?? ''} expected ${expected}±${tol}, got ${actual}`);
-
-// 右利きの人を真横から見た棒人間。腕の上げ具合と膝の曲げ具合を指定できる。
-// raise: 0 = 腕を下ろす、1 = 真上に伸ばす / bend: 膝の角度（度）
-function figure({ raise = 0, bend = 180, vis = 1 } = {}) {
-  const pts = Array.from({ length: 33 }, () => ({ x: 0.5, y: 0.5, v: 0 }));
-  const put = (i, x, y) => { pts[i] = { x, y, v: vis }; };
-  put(LM.NOSE, 0.5, 0.22);
-  put(LM.L_SHOULDER, 0.48, 0.3); put(LM.R_SHOULDER, 0.52, 0.3);
-  put(LM.L_HIP, 0.48, 0.55); put(LM.R_HIP, 0.52, 0.55);
-  // 膝から下：太もも 0.2、すね 0.2。膝を前に出して曲げる
-  const half = ((180 - bend) / 2) * (Math.PI / 180);
-  const kneeX = 0.2 * Math.sin(half), legY = 0.2 * Math.cos(half);
-  for (const [hip, knee, ankle, x] of [[LM.L_HIP, LM.L_KNEE, LM.L_ANKLE, 0.48], [LM.R_HIP, LM.R_KNEE, LM.R_ANKLE, 0.52]]) {
-    put(knee, x + kneeX, 0.55 + legY);
-    put(ankle, x, 0.55 + 2 * legY);
-    void hip;
-  }
-  // 右腕：上腕 0.15、前腕 0.15 をまっすぐ。raise に応じて下向き→上向きへ回す
-  const a = (raise * Math.PI) - Math.PI / 2; // -90°（下）→ +90°（上）
-  const dx = Math.cos(a), dy = -Math.sin(a);
-  put(LM.R_ELBOW, 0.52 + 0.15 * dx, 0.3 + 0.15 * dy);
-  put(LM.R_WRIST, 0.52 + 0.3 * dx, 0.3 + 0.3 * dy);
-  put(LM.L_ELBOW, 0.48, 0.45); put(LM.L_WRIST, 0.48, 0.6);
-  return pts;
-}
-
-// 30fps で、指定した時刻にサーブ（膝を曲げてから腕を振り上げる）を入れた動画
-function clip(serveTimes, seconds = 6, fps = 30) {
-  const frames = [];
-  for (let i = 0; i < seconds * fps; i++) {
-    const t = i / fps;
-    let raise = 0.1, bend = 170;
-    for (const s of serveTimes) {
-      const d = t - s;
-      if (d > -1.2 && d < 0.6) {
-        raise = Math.max(raise, Math.exp(-(d * d) / (2 * 0.12 * 0.12)));      // インパクトで頂点
-        const k = d + 0.35;                                                    // その 0.35 秒前に膝が最も曲がる
-        bend = Math.min(bend, 170 - 50 * Math.exp(-(k * k) / (2 * 0.15 * 0.15)));
-      }
-    }
-    frames.push({ t, pts: figure({ raise, bend }) });
-  }
-  return frames;
-}
+import { near, figure, clip } from './helpers.mjs';
 
 test('angleAt: 直角とまっすぐ', () => {
   near(angleAt({ x: 1, y: 0 }, { x: 0, y: 0 }, { x: 0, y: 1 }), 90, 1e-9);

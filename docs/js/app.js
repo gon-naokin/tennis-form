@@ -5,6 +5,7 @@ import {
   METRICS, BONES, JOINTS, LM, armOf, toPoints, buildSeries, findServes, serveAt,
   valueAt, poseAt, nearestIndex, frameStep, missingTimes,
 } from './pose-math.js';
+import { evaluateServe, summarize } from './coaching.js';
 import { LineChart } from './chart.js';
 
 const MP_VERSION = '0.10.14';
@@ -60,6 +61,9 @@ const dom = {
   jumpTrophy: $('#jump-trophy'),
   jumpImpact: $('#jump-impact'),
   serveNote: $('#serve-note'),
+  coachSlot: $('#coach-slot'),
+  coachSummary: $('#coach-summary'),
+  coachList: $('#coach-list'),
   tableTitle: $('#table-title'),
   tableNote: $('#table-note'),
   table: $('#metrics'),
@@ -75,6 +79,7 @@ const state = {
   playing: false,
   busy: false,
   showPose: true,
+  coachSlot: 0,       // フォームのチェックを表示する動画（0 = A、1 = B）
   metric: 'elbow',
   zoom: 'serve',
 };
@@ -807,6 +812,7 @@ function render() {
 
   renderAlignNote();
   renderTransport();
+  renderCoach();
   renderTable();
   renderChart();
   for (const c of clips) if (c) c.dirty = true;
@@ -842,6 +848,72 @@ function renderTransport() {
     dom.jumpTrophy.disabled = !hasTrophy;
   }
   dom.serveNote.hidden = hasImpact;
+}
+
+const STATUS_LABEL = { good: ['◎', '良い'], hint: ['△', '見直し'], na: ['—', '測れず'] };
+
+function node(tag, className, text) {
+  const n = document.createElement(tag);
+  if (className) n.className = className;
+  if (text != null) n.textContent = text;
+  return n;
+}
+
+// 目安と比べた結果（定型コメント）を並べる
+function renderCoach() {
+  const a = clips[0]?.ready ? clips[0] : null;
+  const b = clips[1]?.ready ? clips[1] : null;
+  if (!b) state.coachSlot = 0;
+  const clip = state.coachSlot === 1 ? b : a;
+
+  dom.coachSlot.hidden = !b;
+  for (const btn of $$('button', dom.coachSlot)) {
+    btn.setAttribute('aria-pressed', String(Number(btn.dataset.slot) === state.coachSlot));
+  }
+  dom.coachList.replaceChildren();
+  if (!clip) { dom.coachSummary.textContent = ''; return; }
+  if (!clip.serve) {
+    dom.coachSummary.textContent = 'インパクトの位置が決まると、フォームをチェックできます。';
+    return;
+  }
+
+  const results = evaluateServe({ frames: clip.frames, series: clip.series, serve: clip.serve });
+  const { measured, good } = summarize(results);
+  dom.coachSummary.textContent = measured
+    ? `測れた ${measured} 項目のうち、${good} 項目が目安どおりです。`
+    : 'この動画では、どの項目も測れませんでした。全身が映るように撮ると測れます。';
+
+  for (const moment of ['trophy', 'impact']) {
+    const items = results.filter((r) => r.moment === moment);
+    const group = node('div', 'coach-group');
+    const head = node('div', 'coach-group-head');
+    head.append(node('h3', '', items[0].momentLabel));
+    if (clip.timeOf(moment) != null) {
+      const jumpBtn = node('button', 'link', 'この瞬間を見る');
+      jumpBtn.type = 'button';
+      jumpBtn.dataset.jump = moment;
+      head.append(jumpBtn);
+    }
+    const list = node('ul', 'coach-items');
+    for (const r of items) {
+      const [mark, label] = STATUS_LABEL[r.status];
+      const li = node('li', `coach-item is-${r.status}`);
+      const status = node('span', 'coach-status');
+      const icon = node('span', '', mark);
+      icon.setAttribute('aria-hidden', 'true');
+      status.append(icon, ` ${label}`);
+      const body = node('div', 'coach-body');
+      const title = node('p', 'coach-title');
+      title.append(node('span', 'coach-name', r.title));
+      if (r.status !== 'na') title.append(node('span', 'coach-value', r.valueText));
+      title.append(node('span', 'coach-target', r.target));
+      body.append(title, node('p', 'coach-text', r.text));
+      li.append(status, body);
+      list.append(li);
+    }
+    group.append(head, list);
+    dom.coachList.append(group);
+  }
 }
 
 function renderTable() {
@@ -1068,6 +1140,20 @@ dom.rates.addEventListener('click', (e) => {
 dom.showPose.addEventListener('change', () => {
   state.showPose = dom.showPose.checked;
   for (const c of clips) if (c) c.dirty = true;
+});
+
+dom.coachSlot.addEventListener('click', (e) => {
+  const slot = e.target.closest('button')?.dataset.slot;
+  if (slot == null) return;
+  state.coachSlot = Number(slot);
+  renderCoach();
+});
+
+dom.coachList.addEventListener('click', (e) => {
+  const key = e.target.closest('[data-jump]')?.dataset.jump;
+  if (!key || state.busy) return;
+  jump(key);
+  clips[0]?.el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 });
 
 dom.metric.addEventListener('change', () => {
