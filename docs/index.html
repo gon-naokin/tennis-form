@@ -78,6 +78,26 @@
         </div>
       </section>
 
+      <section class="card diff" id="diff" hidden>
+        <h2 id="diff-title">A と B の違い</h2>
+        <p class="diff-lead" id="diff-lead"></p>
+        <div class="diff-stage" id="diff-stage">
+          <div class="seg" id="diff-moment" role="group" aria-label="重ねて見る瞬間">
+            <button type="button" class="chip" data-moment="impact" aria-pressed="true">インパクト</button>
+            <button type="button" class="chip" data-moment="trophy" aria-pressed="false">トロフィーポーズ</button>
+          </div>
+          <canvas id="diff-canvas" role="img" aria-label="A と B の骨格を重ねた図"></canvas>
+          <p class="legend">
+            <span class="key"><i class="sw col-a"></i>A</span>
+            <span class="key"><i class="sw col-b"></i>B</span>
+            <span class="at">丸印は利き手の手首</span>
+          </p>
+          <p class="muted small" id="diff-canvas-note" hidden></p>
+        </div>
+        <ul class="diff-list" id="diff-list"></ul>
+        <p class="muted small">重ねた図は、足元の位置と体の高さをそろえています。差が 10°、0.05 倍、5% 以上の項目を「はっきり違う」としています。</p>
+      </section>
+
       <section class="card" id="coach">
         <div class="coach-head">
           <h2>フォームのチェック</h2>

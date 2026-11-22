@@ -192,6 +192,52 @@ export function evaluateServe({ frames, series, serve, view = 'side', hand = 'ri
   });
 }
 
+// これ以上違えば「はっきり違う」とみなす幅（単位ごと）。読み取りの揺れより十分大きい差だけを目立たせる。
+export const DIFF_SCALE = { '°': 10, '倍': 0.05, '%': 5 };
+
+// はっきり違うときに添える一言（diff = B − A）
+const DIFF_TEXT = {
+  'trophy-knee': (d) => (d < 0 ? 'B のほうが膝を深く曲げています。' : 'A のほうが膝を深く曲げています。'),
+  'trophy-toss': (d) => (d > 0 ? 'B のほうがトスの腕が高く残っています。' : 'A のほうがトスの腕が高く残っています。'),
+  'impact-elbow': (d) => (d > 0 ? 'B のほうが肘が伸びています。' : 'A のほうが肘が伸びています。'),
+  'impact-reach': (d) => (d > 0 ? 'B のほうが打点が高くなっています。' : 'A のほうが打点が高くなっています。'),
+  'impact-knee': (d) => (d > 0 ? 'B のほうが膝が伸びています。' : 'A のほうが膝が伸びています。'),
+  'impact-contact': (d, view) => (view === 'back'
+    ? (d > 0 ? 'B のほうが利き腕側で打っています。' : 'B のほうが頭の真上寄り（反対側）で打っています。')
+    : (d > 0 ? 'B のほうが前（ネット側）で打っています。' : 'B のほうが後ろ（頭の真上寄り）で打っています。')),
+};
+
+/**
+ * 2 本のサーブの評価結果（evaluateServe の戻り値）を項目ごとに比べ、違いの大きい順に並べる。
+ * 両方で測れた項目だけを返す。差は表示している（丸めた）数字どうしで出す。
+ * @returns {{ id, title, momentLabel, aText, bText, diff, diffText, score, notable, text }[]}
+ */
+export function compareServes(resultsA, resultsB, view = 'side') {
+  const byId = new Map(resultsB.map((r) => [r.id, r]));
+  const rows = [];
+  for (const a of resultsA) {
+    const b = byId.get(a.id);
+    if (!b || a.value == null || b.value == null) continue;
+    const diff = Number(b.value.toFixed(b.digits)) - Number(a.value.toFixed(a.digits));
+    const score = Math.abs(diff) / DIFF_SCALE[a.unit];
+    const notable = score >= 1;
+    const amount = `${Math.abs(diff).toFixed(a.digits)}${a.unit}`;
+    rows.push({
+      id: a.id,
+      title: a.title,
+      momentLabel: a.momentLabel,
+      aText: a.valueText,
+      bText: b.valueText,
+      diff,
+      diffText: diff > 0 ? `+${amount}` : diff < 0 ? `−${amount}` : `±${amount}`,
+      score,
+      notable,
+      text: notable ? DIFF_TEXT[a.id](diff, view) : 'ほぼ同じです。',
+    });
+  }
+  return rows.sort((p, q) => q.score - p.score);
+}
+
 /** 判定のある項目（良い・見直し）のうち測れた数と、そのうち目安どおりだった数。「参考」の項目は数えない */
 export function summarize(results) {
   const measured = results.filter((r) => r.status === 'good' || r.status === 'hint');

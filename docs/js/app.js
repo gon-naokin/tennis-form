@@ -3,10 +3,11 @@
 
 import {
   METRICS, BONES, JOINTS, LM, armOf, toPoints, buildSeries, findServes, serveAt,
-  valueAt, poseAt, nearestIndex, frameStep, missingTimes,
+  valueAt, poseAt, nearestIndex, frameStep, missingTimes, standardPose,
 } from './pose-math.js';
-import { evaluateServe, summarize, VIEWS, SERVE_TYPES } from './coaching.js';
+import { evaluateServe, summarize, compareServes, VIEWS, SERVE_TYPES } from './coaching.js';
 import { LineChart } from './chart.js';
+import { drawPoseOverlay } from './overlay.js';
 
 const MP_VERSION = '0.10.14';
 const MP_BASE = `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${MP_VERSION}`;
@@ -64,6 +65,14 @@ const dom = {
   coachSlot: $('#coach-slot'),
   coachSummary: $('#coach-summary'),
   coachList: $('#coach-list'),
+  diff: $('#diff'),
+  diffTitle: $('#diff-title'),
+  diffLead: $('#diff-lead'),
+  diffStage: $('#diff-stage'),
+  diffMoment: $('#diff-moment'),
+  diffCanvas: $('#diff-canvas'),
+  diffCanvasNote: $('#diff-canvas-note'),
+  diffList: $('#diff-list'),
   tableTitle: $('#table-title'),
   tableNote: $('#table-note'),
   table: $('#metrics'),
@@ -81,6 +90,7 @@ const state = {
   busy: false,
   showPose: true,
   coachSlot: 0,       // フォームのチェックを表示する動画（0 = A、1 = B）
+  diffMoment: 'impact', // 骨格を重ねて見る瞬間（impact / trophy）
   metric: 'elbow',
   zoom: 'serve',
 };
@@ -834,6 +844,7 @@ function render() {
 
   renderAlignNote();
   renderTransport();
+  renderDiff();
   renderCoach();
   renderTable();
   renderChart();
@@ -971,6 +982,86 @@ function renderCoach() {
     group.append(head, list);
     dom.coachList.append(group);
   }
+}
+
+// ---------------------------------------------------------------- A と B の違い
+
+// 2 本そろったときだけ出す。違いの大きい順の一覧と、骨格を重ねた図で、種類による差を目立たせる。
+function renderDiff() {
+  const a = clips[0]?.ready ? clips[0] : null;
+  const b = clips[1]?.ready ? clips[1] : null;
+  dom.diff.hidden = !(a && b);
+  dom.diffList.replaceChildren();
+  if (!a || !b) return;
+
+  dom.diffTitle.textContent = `A${typeSuffix(a)} と B${typeSuffix(b)} の違い`;
+  for (const btn of $$('button', dom.diffMoment)) {
+    btn.setAttribute('aria-pressed', String(btn.dataset.moment === state.diffMoment));
+  }
+  const comparable = !!a.serve && !!b.serve && a.view === b.view;
+  dom.diffStage.hidden = !comparable;
+  if (!a.serve || !b.serve) {
+    dom.diffLead.textContent = '両方の動画でインパクトの位置が決まると、違いを並べて表示します。';
+    return;
+  }
+  if (a.view !== b.view) {
+    dom.diffLead.textContent = '撮った向きが違うので、違いを比べられません。同じ向きで撮った動画を並べてください。';
+    return;
+  }
+
+  const evaluate = (clip) => evaluateServe({
+    frames: clip.frames, series: clip.series, serve: clip.serve, view: clip.view, hand: state.hand, type: clip.type,
+  });
+  const rows = compareServes(evaluate(a), evaluate(b), a.view);
+  const notable = rows.filter((r) => r.notable);
+  dom.diffLead.textContent = !rows.length
+    ? '比べられる項目がありませんでした。全身が映るように撮ると比べられます。'
+    : notable.length
+      ? `はっきり違うのは ${notable.length} 項目です。いちばん違うのは「${notable[0].title}」です。`
+      : '大きく違う項目はありませんでした。';
+
+  for (const r of rows) {
+    const li = node('li', `diff-row${r.notable ? ' is-notable' : ''}`);
+    const values = node('span', 'diff-values');
+    const swA = node('i', 'sw col-a'), swB = node('i', 'sw col-b');
+    values.append(swA, `A ${r.aText}`, swB, `B ${r.bText}`);
+    const head = node('div', '');
+    head.append(node('span', 'diff-name', r.title), values);
+    li.append(head, node('span', 'diff-amount', r.diffText), node('p', 'diff-text', r.text));
+    dom.diffList.append(li);
+  }
+  drawDiffOverlay();
+}
+
+// A と B の骨格を、足元と体の高さをそろえて 1 枚に重ねる
+function drawDiffOverlay() {
+  const a = clips[0]?.ready ? clips[0] : null;
+  const b = clips[1]?.ready ? clips[1] : null;
+  if (!a || !b || dom.diff.hidden || dom.diffStage.hidden) return;
+
+  const key = state.diffMoment;
+  const poseOf = (clip) => {
+    const index = clip.serve?.[key];
+    return index == null ? null : standardPose(clip.frames[index].pts, state.hand, clip.view);
+  };
+  const poses = [poseOf(a), poseOf(b)];
+  const missing = poses.map((pose, i) => (pose ? null : SLOT_NAMES[i])).filter(Boolean);
+  dom.diffCanvasNote.hidden = !missing.length;
+  if (missing.length) {
+    const why = key === 'trophy' ? 'トロフィーポーズが見つからないか、足元まで映っていない' : '足元まで映っていない';
+    dom.diffCanvasNote.textContent = `${missing.join(' と ')} は、この瞬間の姿勢を重ねられませんでした（${why}可能性があります）。`;
+  }
+
+  const css = getComputedStyle(document.documentElement);
+  const token = (name, fallback) => css.getPropertyValue(name).trim() || fallback;
+  drawPoseOverlay(dom.diffCanvas, poses, {
+    colors: [token('--a', '#2a78d6'), token('--b', '#eb6834')],
+    labels: SLOT_NAMES,
+    wrist: armOf(state.hand).wrist,
+    surface: token('--surface', '#ffffff'),
+    axis: token('--axis', '#c3c2b7'),
+    ink: token('--fg', '#1b1f1c'),
+  });
 }
 
 function renderTable() {
@@ -1213,6 +1304,13 @@ dom.coachList.addEventListener('click', (e) => {
   clips[0]?.el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 });
 
+dom.diffMoment.addEventListener('click', (e) => {
+  const moment = e.target.closest('button')?.dataset.moment;
+  if (!moment) return;
+  state.diffMoment = moment;
+  renderDiff();
+});
+
 dom.metric.addEventListener('change', () => {
   state.metric = dom.metric.value;
   renderChart();
@@ -1234,7 +1332,10 @@ document.addEventListener('keydown', (e) => {
   else if (e.key === 'ArrowRight') { e.preventDefault(); step(1); }
 });
 
-window.addEventListener('resize', () => { for (const c of clips) if (c) c.dirty = true; });
+window.addEventListener('resize', () => {
+  for (const c of clips) if (c) c.dirty = true;
+  drawDiffOverlay();
+});
 
 // プロの参考値は、読めたら表示に足す（読めなくてもアプリは動く）
 fetch('data/pro-reference.json')

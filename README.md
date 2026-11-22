@@ -10,6 +10,7 @@
 - プロの参考値：各項目に、プロ男子・女子の値（中央値と、半数の選手が入る範囲）を並べて表示
 - 動画ごとに「サーブの種類（フラット／スライス／スピン）」と「撮った向き（横から／後ろから）」を選択。比較のとき、種類や向きが違えば知らせる
 - 打点の位置：頭から前後（横から）・左右（後ろから）にどれだけずれた所で打ったかを表示（良し悪しは決めない参考値）
+- A と B の違い：2 本並べると、違いの大きい順の一覧と、骨格を重ねた図（足元と体の高さをそろえ、手首どうしを点線で結ぶ）を表示。差が 10°・0.05 倍・5% 以上の項目を「はっきり違う」として目立たせる
 - トロフィーポーズとインパクトの瞬間を自動で探してジャンプ（外れたら「いまの位置をインパクトにする」で手動指定）
 - 角度の時間変化をグラフ表示（なぞると動画がその位置に移動）
 - 2 本の動画を、インパクトの瞬間をそろえて並べて比較
@@ -73,7 +74,7 @@ python -m http.server 8788 --directory tennis-form/docs
 角度計算、サーブ検出、フォームのチェックの判定、プロのデータの集計のテストです。
 
 ```
-node --test tennis-form/tests/pose-math.test.mjs tennis-form/tests/coaching.test.mjs tennis-form/tests/pro-reference.test.mjs
+node --test tennis-form/tests/pose-math.test.mjs tennis-form/tests/coaching.test.mjs tennis-form/tests/pro-reference.test.mjs tennis-form/tests/compare.test.mjs
 ```
 
 ## GitHub Pages で公開する
@@ -91,6 +92,7 @@ node --test tennis-form/tests/pose-math.test.mjs tennis-form/tests/coaching.test
 | `docs/js/pose-math.js` | 角度計算、サーブ検出（画面に依存しない計算だけ） |
 | `docs/js/coaching.js` | フォームのチェックの目安と定型コメント |
 | `docs/js/chart.js` | 折れ線グラフ |
+| `docs/js/overlay.js` | 2 本の骨格を重ねた図 |
 | `docs/data/pro-reference.json` | プロの参考値（集計結果） |
 | `tools/` | プロの公開データから参考値を集計する道具 |
 | `tests/` | 計算・判定・集計のテスト |

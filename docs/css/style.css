@@ -233,6 +233,27 @@ button.link:disabled { opacity: .45; cursor: not-allowed; }
 .coach-pro { font-size: .82rem; color: var(--muted); font-variant-numeric: tabular-nums; }
 .foot a, .card a { color: var(--accent); }
 
+/* A と B の違い */
+.card.diff { border-color: var(--accent); box-shadow: 3px 3px 0 var(--accent); }
+.diff-lead { font-weight: 700; font-size: 1.05rem; }
+.diff-stage { display: grid; gap: 8px; }
+#diff-canvas { display: block; width: 100%; height: 300px; background: var(--surface-2); border-radius: 12px; }
+.diff-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.diff-list:empty { display: none; }
+.diff-row {
+  display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; align-items: center;
+  padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px;
+}
+.diff-row.is-notable { border: 2px solid var(--accent); background: var(--accent-soft); }
+.diff-row:not(.is-notable) { color: var(--muted); }
+.diff-name { font-weight: 700; }
+.diff-values { font-size: .9rem; font-variant-numeric: tabular-nums; }
+.diff-values .sw { margin-left: 8px; }
+.diff-amount { grid-row: span 2; font-weight: 900; font-size: 1.5rem; font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--fg); }
+.diff-row:not(.is-notable) .diff-amount { font-size: 1.05rem; font-weight: 700; color: var(--muted); }
+.diff-text { grid-column: 1 / -1; font-size: .92rem; }
+.diff-row.is-notable .diff-text { font-weight: 700; }
+
 /* 数値の表 */
 .table-wrap { overflow-x: auto; }
 .metrics { width: 100%; border-collapse: collapse; }

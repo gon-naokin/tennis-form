@@ -125,16 +125,44 @@ export function contactOffset(pts, hand, view) {
   const ankleY = ankles.reduce((s, p) => s + p.y, 0) / ankles.length;
   const head = ankleY - nose.y;
   if (head <= 0.05) return null;
-  let dir;
-  if (view === 'back') {
-    const hit = pts[arm.shoulder], opp = pts[other.shoulder];
-    if (!seen(hit) || !seen(opp)) return null;
-    dir = Math.sign(hit.x - opp.x);
-  } else {
-    dir = Math.sign(nose.x - ankleX);
-  }
+  const dir = facingDirection(pts, hand, view);
   if (!dir) return null;
   return ((wrist.x - nose.x) * dir) / head;
+}
+
+/**
+ * 画面の左右どちらを「正」とするか（+1 = 右、-1 = 左、決められなければ 0）。
+ *   横から: 頭が足より出ている側（前 = ネット側）
+ *   後ろから: 打つ側の肩がある側（利き腕側）
+ */
+export function facingDirection(pts, hand, view) {
+  if (!pts) return 0;
+  if (view === 'back') {
+    const hit = pts[armOf(hand).shoulder], opp = pts[otherArmOf(hand).shoulder];
+    return seen(hit) && seen(opp) ? Math.sign(hit.x - opp.x) : 0;
+  }
+  const nose = pts[LM.NOSE];
+  const ankles = [pts[LM.L_ANKLE], pts[LM.R_ANKLE]].filter((p) => seen(p));
+  if (!seen(nose) || !ankles.length) return 0;
+  return Math.sign(nose.x - ankles.reduce((s, p) => s + p.x, 0) / ankles.length);
+}
+
+/**
+ * 2 本の動画の骨格を重ねて比べるために、姿勢を共通の形にそろえる。
+ * 足首の中点を原点、足首から鼻までの高さを 1 とし、向き（前／利き腕側）が右になるよう左右をそろえる。
+ * y は上が負（鼻が -1）。そろえられなければ null。
+ */
+export function standardPose(pts, hand, view) {
+  if (!pts) return null;
+  const nose = pts[LM.NOSE];
+  const ankles = [pts[LM.L_ANKLE], pts[LM.R_ANKLE]].filter((p) => seen(p));
+  if (!seen(nose) || !ankles.length) return null;
+  const ankleX = ankles.reduce((s, p) => s + p.x, 0) / ankles.length;
+  const ankleY = ankles.reduce((s, p) => s + p.y, 0) / ankles.length;
+  const head = ankleY - nose.y;
+  const dir = facingDirection(pts, hand, view);
+  if (head <= 0.05 || !dir) return null;
+  return pts.map((p) => ({ x: ((p.x - ankleX) * dir) / head, y: (p.y - ankleY) / head, v: p.v }));
 }
 
 /** 前後 1 フレームとの加重平均（1:2:1）。欠けている値は飛ばす */
