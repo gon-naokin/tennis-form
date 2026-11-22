@@ -247,7 +247,7 @@ const CLIP_HTML = `
   </div>
   <div class="clip-foot" hidden>
     <div class="serves" role="group" aria-label="サーブを選ぶ"></div>
-    <button type="button" class="link" data-act="set-impact">いまの位置をインパクトにする</button>
+    <button type="button" class="link" data-act="set-impact">ここをインパクトにする</button>
     <div class="clip-opts">
       <label>種類 <select data-opt="type"></select></label>
       <label>向き <select data-opt="view"></select></label>
@@ -845,6 +845,7 @@ function render() {
 
   dom.start.hidden = !!a;
   dom.work.hidden = !a;
+  document.body.classList.toggle('has-clip', !!a);
   dom.panels.hidden = !a?.ready;
   dom.stages.classList.toggle('two', !!b);
   dom.stages.classList.toggle('portrait', clips.every((c) => !c || c.portrait));
@@ -869,8 +870,9 @@ function render() {
 }
 
 // 表の見出しなどに添える、サーブの種類（未設定なら何も付けない）
+const TYPE_SHORT = { flat: 'フラット', slice: 'スライス', spin: 'スピン' };
 function typeSuffix(clip) {
-  return clip.type === 'unset' ? '' : `（${SERVE_TYPES[clip.type]}）`;
+  return clip.type === 'unset' ? '' : `（${TYPE_SHORT[clip.type]}）`;
 }
 
 function renderAlignNote() {
@@ -883,11 +885,6 @@ function renderAlignNote() {
     : 'インパクトが見つかっていない動画があるため、動画の先頭をそろえて再生します。'];
   if (a.view !== b.view) {
     lines.push(`撮った向きが違います（A は${VIEWS[a.view]}、B は${VIEWS[b.view]}）。向きが違うと角度の見え方が変わるので、数値の差は比べられません。`);
-  }
-  if (a.type !== b.type && a.type !== 'unset' && b.type !== 'unset') {
-    lines.push(`サーブの種類が違います（A は${SERVE_TYPES[a.type]}、B は${SERVE_TYPES[b.type]}）。打点の位置などは種類で変わるので、差にはその分が含まれます。`);
-  } else if (a.type === 'unset' || b.type === 'unset') {
-    lines.push('動画の下の「種類」を選ぶと、同じ種類どうしの比較かどうかが分かります。');
   }
   dom.alignNote.replaceChildren(...lines.map((text) => {
     const p = document.createElement('span');
@@ -929,14 +926,14 @@ function node(tag, className, text) {
 // その項目の、プロの参考値の 1 行。「男子 98°（92〜102°）・女子 102°（97〜107°）」
 function proLine(result, view) {
   const groups = proReference?.views?.[view];
-  if (!groups) return '';
+  if (!groups) return [];
   const fmt = (v) => `${v.toFixed(result.digits)}${result.unit}`;
   const parts = [];
   for (const [id, label] of [['men', '男子'], ['women', '女子']]) {
     const c = groups[id]?.checks?.[result.id];
     if (c) parts.push(`${label} ${fmt(c.p50)}（${fmt(c.p25)}〜${fmt(c.p75)}）`);
   }
-  return parts.length ? `プロ　${parts.join('・')}` : '';
+  return parts;
 }
 
 // 目安と比べた結果（定型コメント）を並べる
@@ -998,7 +995,11 @@ function renderCoach() {
       title.append(node('span', 'coach-target', r.target));
       body.append(title, node('p', 'coach-text', r.text));
       const pro = proLine(r, clip.view);
-      if (pro) body.append(node('p', 'coach-pro', pro));
+      if (pro.length) {
+        const line = node('p', 'coach-pro');
+        line.append(node('span', 'coach-pro-label', 'プロ'), ...pro.map((text) => node('span', '', text)));
+        body.append(line);
+      }
       li.append(status, body);
       list.append(li);
     }
@@ -1017,7 +1018,7 @@ function renderDiff() {
   dom.diffList.replaceChildren();
   if (!a || !b) return;
 
-  dom.diffTitle.textContent = `A${typeSuffix(a)} と B${typeSuffix(b)} の違い`;
+  dom.diffTitle.textContent = `A${typeSuffix(a)}と B${typeSuffix(b)}の違い`;
   for (const btn of $$('button', dom.diffMoment)) {
     btn.setAttribute('aria-pressed', String(btn.dataset.moment === state.diffMoment));
   }
@@ -1072,6 +1073,13 @@ function drawDiffOverlay() {
   const poses = [poseOf(a), poseOf(b)];
   const missing = poses.map((pose, i) => (pose ? null : SLOT_NAMES[i])).filter(Boolean);
   dom.diffCanvasNote.hidden = !missing.length;
+  const nothing = poses.every((pose) => !pose);
+  dom.diffCanvas.hidden = nothing;
+  $('.legend', dom.diffStage).hidden = nothing;
+  if (nothing) {
+    dom.diffCanvasNote.textContent = `重ねた図は、足元まで映っている動画どうしで出ます${key === 'trophy' ? '（トロフィーポーズが見つかっていることも必要です）' : ''}。`;
+    return;
+  }
   if (missing.length) {
     const why = key === 'trophy' ? 'トロフィーポーズが見つからないか、足元まで映っていない' : '足元まで映っていない';
     dom.diffCanvasNote.textContent = `${missing.join(' と ')} は、この瞬間の姿勢を重ねられませんでした（${why}可能性があります）。`;
@@ -1105,10 +1113,11 @@ function renderTable() {
   let columns;
   if (b) {
     dom.tableTitle.textContent = 'いまの位置の数値（A と B）';
-    dom.tableNote.textContent = '「トロフィーポーズ」「インパクト」のボタンを押すと、その瞬間どうしを比べられます。差は B − A です。';
+    const types = a.type !== 'unset' || b.type !== 'unset' ? `A は${TYPE_SHORT[a.type] ?? '未設定'}、B は${TYPE_SHORT[b.type] ?? '未設定'}。` : '';
+    dom.tableNote.textContent = `${types}「トロフィーポーズ」「インパクト」のボタンを押すと、その瞬間どうしを比べられます。差は B − A です。`;
     columns = [
-      { head: `A${typeSuffix(a)}`, cls: 'col-a', live: true, text: (m) => formatValue(m, nowOf(a, m)) },
-      { head: `B${typeSuffix(b)}`, cls: 'col-b', live: true, text: (m) => formatValue(m, nowOf(b, m)) },
+      { head: 'A', cls: 'col-a', live: true, text: (m) => formatValue(m, nowOf(a, m)) },
+      { head: 'B', cls: 'col-b', live: true, text: (m) => formatValue(m, nowOf(b, m)) },
       {
         head: '差', live: true,
         text: (m) => {

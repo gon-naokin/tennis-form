@@ -379,3 +379,41 @@ button.link:disabled { opacity: .45; cursor: not-allowed; }
   .say-hero .char { height: 112px; }
   .say-hero .bubble { font-size: 1rem; }
 }
+
+/* ---- 配置の調整（スマホで、動画と再生ボタンが 1 画面に収まるようにする） ---- */
+
+/* 再生の操作は、よく使う順に：再生・コマ送り → 位置 → 山場へ飛ぶ → 速さ */
+.transport > .row.play { order: 1; }
+.transport > .row.seek { order: 2; }
+.transport > .row.keys { order: 3; }
+.transport > #serve-note { order: 4; }
+.transport > .row.opts { order: 5; }
+
+/* 動画を読み込んだあとは、ヘッダーの説明を畳む */
+.has-clip .lead { display: none; }
+.has-clip .top { padding: 12px 0 6px; }
+.has-clip .char-top { width: 48px; }
+
+.metrics th[scope="row"] { min-width: 8.5em; }
+.coach-pro { display: flex; flex-wrap: wrap; gap: 0 .8em; }
+.coach-pro span { white-space: nowrap; }
+.coach-pro-label { font-weight: 700; }
+.notes { text-align: left; }
+#diff-canvas[hidden] { display: none; }
+
+@media (max-width: 520px) {
+  .stage { width: min(100%, calc(46vh * var(--ar))); }
+  .stages { gap: 8px; }
+  .stages.two .clip-name { display: none; }
+  .stages.two .clip-actions { margin-left: auto; gap: 10px; }
+  .clip-foot { gap: 4px; }
+  .clip-foot .link { margin-left: 0; }
+  .clip-opts { gap: 4px; }
+  .clip-opts label { flex: 1 1 100%; display: grid; grid-template-columns: 2.6em 1fr; align-items: center; }
+  .clip-opts select { width: 100%; min-width: 0; margin-left: 0; padding-inline: 6px; }
+  .stages.two .clip-opts select { font-size: .78rem; }
+  .transport { gap: 10px; }
+  .row.opts .check { margin-left: 0; }
+  .diff-values { display: block; }
+  .diff-values .sw:first-child { margin-left: 0; }
+}
