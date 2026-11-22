@@ -5,7 +5,7 @@ import {
   METRICS, BONES, JOINTS, LM, armOf, toPoints, buildSeries, findServes, serveAt,
   valueAt, poseAt, nearestIndex, frameStep, missingTimes,
 } from './pose-math.js';
-import { evaluateServe, summarize, VIEWS } from './coaching.js';
+import { evaluateServe, summarize, VIEWS, SERVE_TYPES } from './coaching.js';
 import { LineChart } from './chart.js';
 
 const MP_VERSION = '0.10.14';
@@ -51,7 +51,6 @@ const dom = {
   pick: $('#pick'),
   add: $('#add'),
   hand: $('#hand'),
-  view: $('#view'),
   play: $('#play'),
   prev: $('#prev'),
   next: $('#next'),
@@ -76,7 +75,7 @@ const dom = {
 
 const state = {
   hand: readPref('hand') === 'left' ? 'left' : 'right',
-  view: readPref('view') in VIEWS ? readPref('view') : 'side', // 撮った向き（横から / 後ろから）
+  view: readPref('view') in VIEWS ? readPref('view') : 'side', // 次に読み込む動画の「向き」の初期値（最後に選んだもの）
   rate: 0.25,
   playing: false,
   busy: false,
@@ -235,6 +234,10 @@ const CLIP_HTML = `
   <div class="clip-foot" hidden>
     <div class="serves" role="group" aria-label="サーブを選ぶ"></div>
     <button type="button" class="link" data-act="set-impact">いまの位置をインパクトにする</button>
+    <div class="clip-opts">
+      <label>種類 <select data-opt="type"></select></label>
+      <label>向き <select data-opt="view"></select></label>
+    </div>
     <p class="clip-note muted small" hidden></p>
   </div>`;
 
@@ -254,6 +257,15 @@ class Clip {
     this.servesEl = $('.serves', this.el);
     this.note = $('.clip-note', this.el);
 
+    // サーブの種類と撮った向きは動画ごとに持つ（同じ人でも種類で打点が変わり、向きで角度の見え方が変わるため）
+    this.type = 'unset';
+    this.view = state.view;
+    for (const [opt, choices] of [['type', SERVE_TYPES], ['view', VIEWS]]) {
+      const select = $(`[data-opt="${opt}"]`, this.el);
+      for (const [value, label] of Object.entries(choices)) select.append(new Option(label, value));
+      select.value = this[opt];
+    }
+
     this.frames = [];
     this.series = null;
     this.serves = [];
@@ -272,6 +284,13 @@ class Clip {
 
     this.setSlot(slot);
     this.el.addEventListener('click', (e) => this.onClick(e));
+    this.el.addEventListener('change', (e) => {
+      const opt = e.target.dataset?.opt;
+      if (!opt) return;
+      this[opt] = e.target.value;
+      if (opt === 'view') { state.view = this.view; writePref('view', this.view); }
+      render();
+    });
     for (const type of ['play', 'pause', 'ended']) {
       this.video.addEventListener(type, () => onPlayStateChange(this));
     }
@@ -812,9 +831,6 @@ function render() {
     node.setAttribute('aria-pressed', String(node.dataset.hand === state.hand));
     node.disabled = state.busy;
   }
-  for (const node of $$('button', dom.view)) {
-    node.setAttribute('aria-pressed', String(node.dataset.view === state.view));
-  }
 
   renderAlignNote();
   renderTransport();
@@ -825,14 +841,32 @@ function render() {
   lastSeekTime = -1;
 }
 
+// 表の見出しなどに添える、サーブの種類（未設定なら何も付けない）
+function typeSuffix(clip) {
+  return clip.type === 'unset' ? '' : `（${SERVE_TYPES[clip.type]}）`;
+}
+
 function renderAlignNote() {
   const a = clips[0], b = clips[1];
   const both = !!a?.ready && !!b?.ready;
   dom.alignNote.hidden = !both;
   if (!both) return;
-  dom.alignNote.textContent = a.timeOf('impact') != null && b.timeOf('impact') != null
+  const lines = [a.timeOf('impact') != null && b.timeOf('impact') != null
     ? 'A と B は、インパクトの瞬間をそろえて再生します。'
-    : 'インパクトが見つかっていない動画があるため、動画の先頭をそろえて再生します。';
+    : 'インパクトが見つかっていない動画があるため、動画の先頭をそろえて再生します。'];
+  if (a.view !== b.view) {
+    lines.push(`撮った向きが違います（A は${VIEWS[a.view]}、B は${VIEWS[b.view]}）。向きが違うと角度の見え方が変わるので、数値の差は比べられません。`);
+  }
+  if (a.type !== b.type && a.type !== 'unset' && b.type !== 'unset') {
+    lines.push(`サーブの種類が違います（A は${SERVE_TYPES[a.type]}、B は${SERVE_TYPES[b.type]}）。打点の位置などは種類で変わるので、差にはその分が含まれます。`);
+  } else if (a.type === 'unset' || b.type === 'unset') {
+    lines.push('動画の下の「種類」を選ぶと、同じ種類どうしの比較かどうかが分かります。');
+  }
+  dom.alignNote.replaceChildren(...lines.map((text) => {
+    const p = document.createElement('span');
+    p.textContent = text;
+    return p;
+  }));
 }
 
 function renderPlayButton() {
@@ -856,7 +890,7 @@ function renderTransport() {
   dom.serveNote.hidden = hasImpact;
 }
 
-const STATUS_LABEL = { good: ['◎', '良い'], hint: ['△', '見直し'], na: ['—', '測れず'] };
+const STATUS_LABEL = { good: ['◎', '良い'], hint: ['△', '見直し'], info: ['・', '参考'], na: ['—', '測れず'] };
 
 function node(tag, className, text) {
   const n = document.createElement(tag);
@@ -866,8 +900,8 @@ function node(tag, className, text) {
 }
 
 // その項目の、プロの参考値の 1 行。「男子 98°（92〜102°）・女子 102°（97〜107°）」
-function proLine(result) {
-  const groups = proReference?.views?.[state.view];
+function proLine(result, view) {
+  const groups = proReference?.views?.[view];
   if (!groups) return '';
   const fmt = (v) => `${v.toFixed(result.digits)}${result.unit}`;
   const parts = [];
@@ -896,7 +930,9 @@ function renderCoach() {
     return;
   }
 
-  const results = evaluateServe({ frames: clip.frames, series: clip.series, serve: clip.serve, view: state.view });
+  const results = evaluateServe({
+    frames: clip.frames, series: clip.series, serve: clip.serve, view: clip.view, hand: state.hand, type: clip.type,
+  });
   const { measured, good } = summarize(results);
   dom.coachSummary.textContent = measured
     ? `測れた ${measured} 項目のうち、${good} 項目が目安どおりです。`
@@ -927,7 +963,7 @@ function renderCoach() {
       if (r.status !== 'na') title.append(node('span', 'coach-value', r.valueText));
       title.append(node('span', 'coach-target', r.target));
       body.append(title, node('p', 'coach-text', r.text));
-      const pro = proLine(r);
+      const pro = proLine(r, clip.view);
       if (pro) body.append(node('p', 'coach-pro', pro));
       li.append(status, body);
       list.append(li);
@@ -955,8 +991,8 @@ function renderTable() {
     dom.tableTitle.textContent = 'いまの位置の数値（A と B）';
     dom.tableNote.textContent = '「トロフィーポーズ」「インパクト」のボタンを押すと、その瞬間どうしを比べられます。差は B − A です。';
     columns = [
-      { head: 'A', cls: 'col-a', live: true, text: (m) => formatValue(m, nowOf(a, m)) },
-      { head: 'B', cls: 'col-b', live: true, text: (m) => formatValue(m, nowOf(b, m)) },
+      { head: `A${typeSuffix(a)}`, cls: 'col-a', live: true, text: (m) => formatValue(m, nowOf(a, m)) },
+      { head: `B${typeSuffix(b)}`, cls: 'col-b', live: true, text: (m) => formatValue(m, nowOf(b, m)) },
       {
         head: '差', live: true,
         text: (m) => {
@@ -1140,14 +1176,6 @@ dom.hand.addEventListener('click', (e) => {
   state.hand = hand;
   writePref('hand', hand);
   for (const c of clips) if (c?.ready) c.recompute();
-  render();
-});
-
-dom.view.addEventListener('click', (e) => {
-  const view = e.target.closest('button')?.dataset.view;
-  if (!view || view === state.view) return;
-  state.view = view;
-  writePref('view', view);
   render();
 });
 

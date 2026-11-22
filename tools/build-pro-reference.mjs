@@ -135,7 +135,7 @@ export function measureServe(array, options) {
     (frames[s.impact].pts[hand === 'left' ? LM.L_WRIST : LM.R_WRIST].y
       < frames[best.impact].pts[hand === 'left' ? LM.L_WRIST : LM.R_WRIST].y ? s : best));
   const values = {};
-  for (const r of evaluateServe({ frames, series, serve })) values[r.id] = r.value;
+  for (const r of evaluateServe({ frames, series, serve, hand, view: options?.viewId ?? 'side' })) values[r.id] = r.value;
   return { hand, values };
 }
 
@@ -274,7 +274,7 @@ async function main() {
     const measured = [];
     let unread = 0;
     for (const { row, array } of arrays) {
-      const result = measureServe(array, { fps, view });
+      const result = measureServe(array, { fps, view, viewId: id });
       if (!result) { unread += 1; continue; }
       measured.push({ group: row.group, player: row.player, hand: result.hand, values: result.values });
     }

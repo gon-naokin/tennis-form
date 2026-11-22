@@ -29,11 +29,6 @@
       <button type="button" class="chip" data-hand="right" aria-pressed="true">右</button>
       <button type="button" class="chip" data-hand="left" aria-pressed="false">左</button>
     </div>
-    <span class="bar-label" id="view-label">撮った向き</span>
-    <div class="seg" id="view" role="group" aria-labelledby="view-label">
-      <button type="button" class="chip" data-view="side" aria-pressed="true">横から</button>
-      <button type="button" class="chip" data-view="back" aria-pressed="false">後ろから</button>
-    </div>
   </div>
 
   <section class="card" id="start">
@@ -44,9 +39,11 @@
     <details class="tips">
       <summary>うまく読み取れる撮り方</summary>
       <ul>
-        <li>スマホを固定して、真横（ベースラインの延長）か真後ろから撮り、上の「撮った向き」を合わせる</li>
+        <li>スマホを固定して、真横（ベースラインの延長）か真後ろから撮り、動画の下の「向き」を合わせる</li>
         <li>膝の曲がりを見たいときは後ろから。横からだと膝がカメラの方へ曲がるので、浅く見える</li>
         <li>スマホは縦向きにして、頭の上に伸ばした腕から足元まで全身を入れる</li>
+        <li>フラット・スライス・スピンは別々の動画に撮り、動画の下の「種類」を選ぶ</li>
+        <li>打点の位置は、前後は横から、左右は後ろからの動画で分かる</li>
         <li>映るのは 1 人だけにする</li>
         <li>明るい場所で、体と背景の色がはっきり分かれるようにする</li>
         <li>できればスロー撮影にすると、速い腕の動きも読み取りやすい</li>
@@ -56,7 +53,7 @@
 
   <div id="work" hidden>
     <div class="stages" id="stages"></div>
-    <p class="muted small center" id="align-note" hidden></p>
+    <p class="muted small center notes" id="align-note" hidden></p>
 
     <div id="panels" hidden>
       <section class="card" aria-label="再生の操作">

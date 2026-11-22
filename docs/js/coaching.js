@@ -11,7 +11,19 @@
 // 以前あった「トロフィーポーズでの利き腕の肘の高さ」は外した。膝が最も曲がった瞬間のプロの値が目安（80° 以上）に
 // まったく届かず（中央値 20〜65°）、この瞬間に肘が肩の高さにあるという前提が成り立たなかったため。
 
+import { contactOffset } from './pose-math.js';
+
 export const VIEWS = { side: '横から', back: '後ろから' };
+
+// サーブの種類。動画ごとに利用者が選ぶ（映像からは判別しない）。
+export const SERVE_TYPES = { unset: '未設定', flat: 'フラット', slice: 'スライス', spin: 'スピン（ドライブ）' };
+
+// 種類ごとの、打点の位置の一般的な傾向（判定には使わず、数値を読む手がかりとして添える）
+const CONTACT_HINT = {
+  flat: { side: 'フラットは、頭より前で打つのが一般的です。', back: 'フラットは、頭より少し利き腕側で打つのが一般的です。' },
+  slice: { side: 'スライスは、フラットと同じくらい前で打つのが一般的です。', back: 'スライスは、フラットよりさらに利き腕側で打つのが一般的です。' },
+  spin: { side: 'スピンは、フラットより後ろ（頭の真上寄り）で打つのが一般的です。', back: 'スピンは、頭の真上から反対側寄りで打つのが一般的です。' },
+};
 
 export const GUIDE = {
   trophyKnee: {                              // 深く曲げた側の膝の角度（小さいほど深い）
@@ -45,7 +57,8 @@ function maxAround(frames, values, index, window) {
 
 /**
  * チェック項目。measure が値（測れなければ null）を返し、judge がその値と撮った向きから判定と文を返す。
- * status は 'good'（目安どおり）か 'hint'（見直しポイント）。target は文字列か、撮った向きを受け取る関数。
+ * status は 'good'（目安どおり）、'hint'（見直しポイント）、'info'（良し悪しを決めない参考値）のどれか。
+ * target は文字列か、撮った向きを受け取る関数。
  */
 export const CHECKS = [
   {
@@ -128,16 +141,38 @@ export const CHECKS = [
       return { status: 'hint', text: '打つ瞬間に膝が曲がったままです。地面を蹴って伸び上がりながら打つと、打点が高くなります。' };
     },
   },
+  {
+    // 良し悪しは決めず、位置だけを示す。同じ人のフラットとスピンを比べるときの手がかりにする。
+    id: 'impact-contact',
+    moment: 'impact',
+    title: '打点の位置',
+    unit: '%',
+    digits: 0,
+    target: (view) => (view === 'back' ? '頭から利き腕側へのずれ（体の高さ比）' : '頭から前へのずれ（体の高さ比）'),
+    measure: ({ frames, serve, hand, view }) => {
+      const offset = contactOffset(frames[serve.impact].pts, hand, view);
+      return offset == null ? null : offset * 100;
+    },
+    judge: (v, view, type) => {
+      const amount = Math.abs(v).toFixed(0);
+      const where = view === 'back'
+        ? (v >= 0 ? `頭より ${amount}% 利き腕側` : `頭より ${amount}% 反対側`)
+        : (v >= 0 ? `頭より ${amount}% 前（ネット側）` : `頭より ${amount}% 後ろ`);
+      const hint = CONTACT_HINT[type]?.[view];
+      return { status: 'info', text: `${where}で打っています。${hint ?? ''}` };
+    },
+  },
 ];
 
 /**
  * サーブ 1 本を評価する。
- * @param {{ frames: {t:number}[], series: Record<string,(number|null)[]>, serve: {impact:number, trophy:number|null}, view?: 'side'|'back' }} input
- * @returns {{ id, moment, momentLabel, title, target, unit, digits, value, valueText, status: 'good'|'hint'|'na', text }[]}
+ * @param {{ frames: {t:number, pts:object[]|null}[], series: Record<string,(number|null)[]>, serve: {impact:number, trophy:number|null},
+ *           view?: 'side'|'back', hand?: 'right'|'left', type?: keyof SERVE_TYPES }} input
+ * @returns {{ id, moment, momentLabel, title, target, unit, digits, value, valueText, status: 'good'|'hint'|'info'|'na', text }[]}
  */
-export function evaluateServe({ frames, series, serve, view = 'side' }) {
+export function evaluateServe({ frames, series, serve, view = 'side', hand = 'right', type = 'unset' }) {
   return CHECKS.map((check) => {
-    const value = check.measure({ frames, series, serve });
+    const value = check.measure({ frames, series, serve, hand, view });
     const base = {
       id: check.id,
       moment: check.moment,
@@ -153,12 +188,12 @@ export function evaluateServe({ frames, series, serve, view = 'side' }) {
         : '測れませんでした。体の一部が映っていないか、うまく読み取れていません。';
       return { ...base, value: null, valueText: '—', status: 'na', text };
     }
-    return { ...base, value, valueText: `${value.toFixed(check.digits)}${check.unit}`, ...check.judge(value, view) };
+    return { ...base, value, valueText: `${value.toFixed(check.digits)}${check.unit}`, ...check.judge(value, view, type) };
   });
 }
 
-/** 測れた項目数と、そのうち目安どおりだった数 */
+/** 判定のある項目（良い・見直し）のうち測れた数と、そのうち目安どおりだった数。「参考」の項目は数えない */
 export function summarize(results) {
-  const measured = results.filter((r) => r.status !== 'na');
+  const measured = results.filter((r) => r.status === 'good' || r.status === 'hint');
   return { measured: measured.length, good: measured.filter((r) => r.status === 'good').length, total: results.length };
 }

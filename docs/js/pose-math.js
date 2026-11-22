@@ -109,6 +109,34 @@ export function computeMetrics(pts, hand) {
   return out;
 }
 
+/**
+ * 打点の位置：利き手の手首が、頭（鼻）から水平にどれだけ離れているか。足首から鼻までの高さに対する比。
+ *   横から撮った動画（view = 'side'）: 前（ネット側）が正。前の向きは「頭が足より出ている側」で決める
+ *   後ろから撮った動画（view = 'back'）: 利き腕側が正。利き腕側は「打つ側の肩がある側」で決める
+ * どちらも左右を反転した映像で同じ値になる。向きを決められなければ null。
+ */
+export function contactOffset(pts, hand, view) {
+  if (!pts) return null;
+  const arm = armOf(hand), other = otherArmOf(hand);
+  const wrist = pts[arm.wrist], nose = pts[LM.NOSE];
+  const ankles = [pts[LM.L_ANKLE], pts[LM.R_ANKLE]].filter((p) => seen(p));
+  if (!seen(wrist, MIN_VIS_FAST) || !seen(nose) || !ankles.length) return null;
+  const ankleX = ankles.reduce((s, p) => s + p.x, 0) / ankles.length;
+  const ankleY = ankles.reduce((s, p) => s + p.y, 0) / ankles.length;
+  const head = ankleY - nose.y;
+  if (head <= 0.05) return null;
+  let dir;
+  if (view === 'back') {
+    const hit = pts[arm.shoulder], opp = pts[other.shoulder];
+    if (!seen(hit) || !seen(opp)) return null;
+    dir = Math.sign(hit.x - opp.x);
+  } else {
+    dir = Math.sign(nose.x - ankleX);
+  }
+  if (!dir) return null;
+  return ((wrist.x - nose.x) * dir) / head;
+}
+
 /** 前後 1 フレームとの加重平均（1:2:1）。欠けている値は飛ばす */
 export function smooth(values) {
   return values.map((v, i) => {
