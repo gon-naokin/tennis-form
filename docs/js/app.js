@@ -43,6 +43,7 @@ const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 
 const dom = {
   msg: $('#msg'),
+  msgText: $('#msg-text'),
   start: $('#start'),
   work: $('#work'),
   stages: $('#stages'),
@@ -63,10 +64,12 @@ const dom = {
   jumpImpact: $('#jump-impact'),
   serveNote: $('#serve-note'),
   coachSlot: $('#coach-slot'),
+  coachChar: $('#coach-char'),
   coachSummary: $('#coach-summary'),
   coachList: $('#coach-list'),
   diff: $('#diff'),
   diffTitle: $('#diff-title'),
+  diffChar: $('#diff-char'),
   diffLead: $('#diff-lead'),
   diffStage: $('#diff-stage'),
   diffMoment: $('#diff-moment'),
@@ -233,6 +236,7 @@ const CLIP_HTML = `
     <video playsinline muted preload="auto" disablepictureinpicture></video>
     <canvas aria-hidden="true"></canvas>
     <div class="veil" hidden>
+      <img class="char veil-char" src="img/star-racket.png" alt="" width="360" height="210">
       <p class="veil-text"></p>
       <progress max="1" value="0"></progress>
       <div class="veil-actions">
@@ -721,8 +725,20 @@ function dropClip(slot) {
 }
 
 function showMessage(text) {
-  dom.msg.textContent = text;
+  dom.msgText.textContent = text;
   dom.msg.hidden = !text;
+}
+
+// キャラクターに一言しゃべらせる。絵が変わったときだけ、ぴょんと跳ねる動きを付け直す。
+function say(img, bubble, character, text) {
+  const src = `img/${character}.png`;
+  if (!img.src.endsWith(src)) {
+    img.src = src;
+    img.classList.remove('hop');
+    void img.offsetWidth; // 動きを最初からやり直すための読み出し
+    img.classList.add('hop');
+  }
+  bubble.textContent = text;
 }
 
 // ---------------------------------------------------------------- 再生
@@ -937,7 +953,7 @@ function renderCoach() {
   dom.coachList.replaceChildren();
   if (!clip) { dom.coachSummary.textContent = ''; return; }
   if (!clip.serve) {
-    dom.coachSummary.textContent = 'インパクトの位置が決まると、フォームをチェックできます。';
+    say(dom.coachChar, dom.coachSummary, 'worm', 'インパクトの位置が決まると、フォームをチェックできるよ。');
     return;
   }
 
@@ -945,9 +961,16 @@ function renderCoach() {
     frames: clip.frames, series: clip.series, serve: clip.serve, view: clip.view, hand: state.hand, type: clip.type,
   });
   const { measured, good } = summarize(results);
-  dom.coachSummary.textContent = measured
-    ? `測れた ${measured} 項目のうち、${good} 項目が目安どおりです。`
-    : 'この動画では、どの項目も測れませんでした。全身が映るように撮ると測れます。';
+  if (!measured) {
+    say(dom.coachChar, dom.coachSummary, 'frog-sleep', 'この動画では、どの項目も測れなかったよ。全身が映るように撮ってみてね。');
+  } else if (good === measured && measured >= 3) {
+    say(dom.coachChar, dom.coachSummary, 'star-ball', `ナイスサーブ！ 測れた ${measured} 項目が、ぜんぶ目安どおりだよ。`);
+  } else if (good === measured) {
+    // 測れた項目が少ないときは、ほめすぎない
+    say(dom.coachChar, dom.coachSummary, 'bear', `測れた ${measured} 項目は目安どおり。全身が映るように撮ると、もっとチェックできるよ。`);
+  } else {
+    say(dom.coachChar, dom.coachSummary, 'bear', `測れた ${measured} 項目のうち、${good} 項目が目安どおり。△ のところを見てみよう。`);
+  }
 
   for (const moment of ['trophy', 'impact']) {
     const items = results.filter((r) => r.moment === moment);
@@ -1001,11 +1024,11 @@ function renderDiff() {
   const comparable = !!a.serve && !!b.serve && a.view === b.view;
   dom.diffStage.hidden = !comparable;
   if (!a.serve || !b.serve) {
-    dom.diffLead.textContent = '両方の動画でインパクトの位置が決まると、違いを並べて表示します。';
+    say(dom.diffChar, dom.diffLead, 'worm', '両方の動画でインパクトの位置が決まると、違いを並べるよ。');
     return;
   }
   if (a.view !== b.view) {
-    dom.diffLead.textContent = '撮った向きが違うので、違いを比べられません。同じ向きで撮った動画を並べてください。';
+    say(dom.diffChar, dom.diffLead, 'frog-sleep', '撮った向きが違うから、比べられないよ。同じ向きで撮った動画を並べてね。');
     return;
   }
 
@@ -1014,11 +1037,13 @@ function renderDiff() {
   });
   const rows = compareServes(evaluate(a), evaluate(b), a.view);
   const notable = rows.filter((r) => r.notable);
-  dom.diffLead.textContent = !rows.length
-    ? '比べられる項目がありませんでした。全身が映るように撮ると比べられます。'
-    : notable.length
-      ? `はっきり違うのは ${notable.length} 項目です。いちばん違うのは「${notable[0].title}」です。`
-      : '大きく違う項目はありませんでした。';
+  if (!rows.length) {
+    say(dom.diffChar, dom.diffLead, 'frog-sleep', '比べられる項目がなかったよ。全身が映るように撮ってみてね。');
+  } else if (notable.length) {
+    say(dom.diffChar, dom.diffLead, 'blob-spiky', `いちばん違うのは「${notable[0].title}」だよ！ はっきり違うのは ${notable.length} 項目。`);
+  } else {
+    say(dom.diffChar, dom.diffLead, 'blob-crown', '大きく違うところは、なかったよ。');
+  }
 
   for (const r of rows) {
     const li = node('li', `diff-row${r.notable ? ' is-notable' : ''}`);

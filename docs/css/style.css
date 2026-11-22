@@ -1,24 +1,40 @@
-/* サーブ フォームチェック — スマホ縦画面を基準。色と形はテニス班の戦績アプリに合わせている */
+/* サーブ フォームチェック — スマホ縦画面を基準。配色は指定のパレット（青〜藍）、形は丸く、キャラクターを添える */
 :root {
-  --bg: #fdf8e7;
+  /* 指定のパレット */
+  --blue: #0088cd;          /* ポラステックブルー */
+  --indigo: #332977;        /* インディゴ */
+  --deep-indigo: #241d53;   /* ディープインディゴ */
+  --ice-blue: #aad4e5;      /* アイスブルー */
+  --sky: #56bad8;           /* スカイ */
+  --cyan: #29aecc;          /* シアン */
+  --deep-teal: #00668e;     /* ディープティール */
+  --text-black: #231815;    /* テキストブラック */
+  --sub-gray: #8c8b8a;      /* サブグレー */
+  --ice-40: #ddeef5;        /* アイス 40% */
+  --ice-20: #eef6fa;        /* アイス 20% */
+
+  /* 役割ごとの色 */
+  --bg: var(--ice-20);
   --surface: #ffffff;
-  --surface-2: #f3efe0;
-  --fg: #1b1f1c;
-  --muted: #5c635c;
-  --line: #ded9c6;
-  --ink: #1b1f1c;
-  --accent: #17795a;
-  --accent-soft: #dff1e4;
+  --surface-2: var(--ice-40);
+  --fg: var(--text-black);
+  --muted: #6b6a69;         /* サブグレーを小さい文字でも読める濃さにしたもの */
+  --line: var(--ice-blue);
+  --ink: var(--indigo);     /* 枠線と影 */
+  --accent: var(--indigo);  /* 押せるもの：主ボタン、リンク、選択中の枠 */
+  --accent-soft: var(--ice-40);
   --on-accent: #ffffff;
-  --a: #2a78d6;       /* 動画 A（グラフの 1 本目） */
-  --b: #eb6834;       /* 動画 B（グラフの 2 本目） */
-  --grid: #e1e0d9;
-  --axis: #c3c2b7;
+  --pop: var(--blue);       /* 目立たせたい枠や帯 */
+  --pop-text: var(--deep-teal); /* 色付きの小さい文字（青のままだと白地で薄い） */
+  --a: var(--blue);         /* 動画 A（グラフの 1 本目） */
+  --b: #eb6834;             /* 動画 B（グラフの 2 本目）。A と見分けるため、パレット外の橙を 1 色だけ使う */
+  --grid: var(--ice-40);
+  --axis: var(--ice-blue);
   --danger: #b42318;
   --danger-soft: #fdecea;
-  --good: #0f5f45;        /* 「良い」のラベル */
-  --good-soft: #dff1e4;
-  --hint: #7a4b00;        /* 「見直し」のラベル */
+  --good: var(--deep-teal); /* 「良い」のラベル */
+  --good-soft: var(--ice-40);
+  --hint: #7a4b00;          /* 「見直し」のラベル */
   --hint-soft: #ffeec4;
   --radius: 18px;
   --shadow: 3px 3px 0 var(--ink);
@@ -26,24 +42,26 @@
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #0f1412;
-    --surface: #171d1b;
-    --surface-2: #1f2725;
-    --fg: #e5ebe8;
-    --muted: #96a29d;
-    --line: #2a3330;
-    --ink: #55625c;
-    --accent: #5cc59a;
-    --accent-soft: #1a2b24;
-    --on-accent: #0f1412;
-    --a: #3987e5;
+    --bg: #17132f;
+    --surface: var(--deep-indigo);
+    --surface-2: #2f2769;
+    --fg: var(--ice-20);
+    --muted: #a9c3d4;
+    --line: #453b8f;
+    --ink: var(--sky);
+    --accent: var(--sky);
+    --accent-soft: #2f2769;
+    --on-accent: #17132f;
+    --pop: var(--cyan);
+    --pop-text: var(--ice-blue);
+    --a: var(--blue);
     --b: #d95926;
-    --grid: #2c2c2a;
-    --axis: #383835;
+    --grid: #2f2769;
+    --axis: #453b8f;
     --danger: #ff8a80;
     --danger-soft: #3a1c19;
-    --good: #7fd9b0;
-    --good-soft: #1a2b24;
+    --good: var(--ice-blue);
+    --good-soft: #2f2769;
     --hint: #f2c46b;
     --hint-soft: #3a2c10;
     color-scheme: dark;
@@ -73,7 +91,7 @@ button, select, input { font: inherit; color: inherit; }
 .container { max-width: 960px; margin: 0 auto; padding: 0 16px; }
 
 .top { padding: 20px 0 12px; }
-.eyebrow { font-size: .8rem; font-weight: 700; color: var(--accent); letter-spacing: .04em; }
+.eyebrow { font-size: .8rem; font-weight: 700; color: var(--pop-text); letter-spacing: .04em; }
 .lead { color: var(--muted); margin-top: 4px; }
 
 main { display: grid; gap: 14px; padding-bottom: 32px; }
@@ -185,10 +203,10 @@ button.link:disabled { opacity: .45; cursor: not-allowed; }
   background: rgba(0, 0, 0, .72); color: #ffffff; cursor: default;
 }
 .veil-text { font-size: .85rem; font-weight: 700; }
-.veil progress { width: 100%; height: 8px; accent-color: #7cf3c5; }
+.veil progress { width: 100%; height: 8px; accent-color: #56bad8; }
 .veil-actions { display: flex; gap: 8px; justify-content: flex-end; }
 .veil .btn { background: #ffffff; color: #1b1f1c; border-color: #ffffff; }
-.veil .btn.primary { background: #7cf3c5; border-color: #7cf3c5; }
+.veil .btn.primary { background: #56bad8; border-color: #56bad8; }
 .clip-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; }
 .serves { display: inline-flex; gap: 6px; }
 .clip-foot .link { font-size: .85rem; margin-left: auto; }
@@ -234,7 +252,7 @@ button.link:disabled { opacity: .45; cursor: not-allowed; }
 .foot a, .card a { color: var(--accent); }
 
 /* A と B の違い */
-.card.diff { border-color: var(--accent); box-shadow: 3px 3px 0 var(--accent); }
+.card.diff { border-color: var(--pop); box-shadow: 3px 3px 0 var(--pop); }
 .diff-lead { font-weight: 700; font-size: 1.05rem; }
 .diff-stage { display: grid; gap: 8px; }
 #diff-canvas { display: block; width: 100%; height: 300px; background: var(--surface-2); border-radius: 12px; }
@@ -244,7 +262,7 @@ button.link:disabled { opacity: .45; cursor: not-allowed; }
   display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; align-items: center;
   padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px;
 }
-.diff-row.is-notable { border: 2px solid var(--accent); background: var(--accent-soft); }
+.diff-row.is-notable { border: 2px solid var(--pop); background: var(--accent-soft); }
 .diff-row:not(.is-notable) { color: var(--muted); }
 .diff-name { font-weight: 700; }
 .diff-values { font-size: .9rem; font-variant-numeric: tabular-nums; }
@@ -301,4 +319,63 @@ button.link:disabled { opacity: .45; cursor: not-allowed; }
   .card { padding: 14px 12px; }
   .row.play > .btn, .row.keys > .btn { font-size: .95rem; }
   .coach-item { grid-template-columns: 1fr; gap: 6px; }  /* 狭い画面では判定を文の上に置く */
+}
+
+/* キャラクターと吹き出し */
+.char { display: block; height: auto; user-select: none; -webkit-user-select: none; pointer-events: none; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+.top-inner { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; }
+.char-top { width: 84px; flex: none; margin-bottom: -6px; transform: rotate(4deg); }
+
+.say { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.say .char { height: 60px; width: auto; max-width: 112px; flex: none; }
+.bubble {
+  position: relative; flex: 1; min-width: 0;
+  background: var(--surface-2); border: 2px solid var(--ink); border-radius: 16px;
+  padding: 10px 14px; font-weight: 700;
+}
+.bubble::before { /* しっぽ */
+  content: ""; position: absolute; left: -9px; top: 50%; width: 14px; height: 14px;
+  background: var(--surface-2); border-left: 2px solid var(--ink); border-bottom: 2px solid var(--ink);
+  transform: translateY(-50%) rotate(45deg); border-bottom-left-radius: 4px;
+}
+.bubble-sub { font-weight: 500; font-size: .9rem; color: var(--muted); }
+.say-hero .char { height: 132px; max-width: none; }
+.say-hero .bubble { font-size: 1.1rem; }
+
+.msg { display: flex; align-items: center; gap: 10px; }
+.msg .char { height: 40px; width: auto; flex: none; }
+
+/* 解析中：動画の下の帯で、星がラケットを振りながら走る */
+.veil { grid-template-columns: auto 1fr; align-items: center; column-gap: 10px; }
+.veil-char { height: 40px; width: auto; grid-row: span 2; animation: dash 1.1s ease-in-out infinite; }
+.veil progress, .veil-actions { grid-column: 2; }
+.veil progress[hidden] + .veil-actions { grid-column: 2; }
+
+.parade { display: flex; align-items: flex-end; justify-content: center; gap: 14px; flex-wrap: wrap; margin-bottom: 10px; }
+.parade .char { height: 48px; width: auto; }
+.parade .char:nth-child(odd) { animation: bob 3.2s ease-in-out infinite; }
+.parade .char:nth-child(even) { animation: bob 3.2s ease-in-out -1.6s infinite; }
+.foot { text-align: center; }
+
+/* 暗い背景では、黒い線が沈まないよう白いふちを付ける */
+@media (prefers-color-scheme: dark) {
+  .char { filter: drop-shadow(0 0 1.5px #ffffff) drop-shadow(0 0 1.5px #ffffff); }
+}
+
+.bob { animation: bob 2.6s ease-in-out infinite; }
+.hop { animation: hop .6s ease-out; }
+@keyframes bob { 0%, 100% { transform: translateY(0) rotate(-2deg); } 50% { transform: translateY(-6px) rotate(2deg); } }
+@keyframes hop { 0% { transform: translateY(0) scale(1); } 35% { transform: translateY(-14px) scale(1.08); } 70% { transform: translateY(0) scale(.96); } 100% { transform: translateY(0) scale(1); } }
+@keyframes dash { 0%, 100% { transform: translateX(-3px) rotate(-4deg); } 50% { transform: translateX(3px) rotate(4deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .bob, .hop, .veil-char, .parade .char { animation: none !important; }
+}
+
+@media (max-width: 420px) {
+  .char-top { width: 68px; }
+  .say .char { height: 52px; max-width: 96px; }
+  .say-hero .char { height: 112px; }
+  .say-hero .bubble { font-size: 1rem; }
 }
