@@ -76,6 +76,7 @@ const dom = {
   diffCanvas: $('#diff-canvas'),
   diffCanvasNote: $('#diff-canvas-note'),
   diffList: $('#diff-list'),
+  zoomStages: $('#zoom-stages'),
   tableTitle: $('#table-title'),
   tableNote: $('#table-note'),
   table: $('#metrics'),
@@ -272,6 +273,13 @@ class Clip {
     this.note = $('.clip-note', this.el);
 
     // サーブの種類と撮った向きは動画ごとに持つ（同じ人でも種類で打点が変わり、向きで角度の見え方が変わるため）
+    // 手元の拡大：ラケットを持つ手のまわりを大きく映す（「手元の拡大」欄に並べる）
+    this.zoomEl = document.createElement('figure');
+    this.zoomEl.className = 'zoom-figure';
+    this.zoomEl.innerHTML = '<span class="badge"></span><canvas aria-label="手元を拡大した映像"></canvas>';
+    this.zoomCanvas = this.zoomEl.querySelector('canvas');
+    this.zoomBox = null; // 直前に映した範囲。手首を読めないコマでは同じ範囲を映し続ける
+
     this.type = 'unset';
     this.view = state.view;
     for (const [opt, choices] of [['type', SERVE_TYPES], ['view', VIEWS]]) {
@@ -324,6 +332,8 @@ class Clip {
     this.slot = slot;
     this.el.dataset.slot = String(slot);
     $('.badge', this.el).textContent = SLOT_NAMES[slot];
+    this.zoomEl.dataset.slot = String(slot);
+    this.zoomEl.querySelector('.badge').textContent = SLOT_NAMES[slot];
   }
 
   get serve() { return this.serves[this.sel] ?? null; }
@@ -572,6 +582,7 @@ class Clip {
   }
 
   draw(t) {
+    this.drawZoom(t);
     const { canvas, ctx } = this;
     const w = canvas.clientWidth, h = canvas.clientHeight;
     if (!w || !h) return;
@@ -587,6 +598,44 @@ class Clip {
     if (this.ready) drawAngleTags(ctx, pts, h, w, (id) => valueAt(this.frames, this.series[id], t));
   }
 
+  // 利き手の手首の先を中心に、ラケットが収まる広さ（体の高さの 4 分の 3 ほどの正方形）を切り出して大きく映す
+  drawZoom(t) {
+    const v = this.video, canvas = this.zoomCanvas;
+    if (!this.ready || !canvas.isConnected || v.readyState < 2) return;
+    const size = canvas.clientWidth;
+    if (!size) return;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const px = Math.round(size * dpr);
+    if (canvas.width !== px) { canvas.width = px; canvas.height = px; }
+
+    const pts = poseAt(this.frames, t);
+    const wrist = pts?.[armOf(state.hand).wrist];
+    if (wrist && wrist.v >= DRAW_MIN_VIS) {
+      const H = v.videoHeight;
+      const nose = pts[LM.NOSE];
+      const ankles = [pts[LM.L_ANKLE], pts[LM.R_ANKLE]].filter((p) => p.v >= 0.5);
+      // 体の高さ（足首〜鼻）。足元が映っていなければ、画面の高さの半分を目安にする
+      const body = nose.v >= 0.5 && ankles.length
+        ? (ankles.reduce((s, p) => s + p.y, 0) / ankles.length - nose.y) * H
+        : H * 0.5;
+      const side = clamp(body * 0.75, H * 0.2, Math.min(v.videoWidth, H));
+      // ラケットは前腕の先に伸びているので、手首から前腕の向きに少し進んだ所を中心にする
+      const elbow = pts[armOf(state.hand).elbow];
+      let dx = 0, dy = 0;
+      if (elbow.v >= DRAW_MIN_VIS) {
+        const length = Math.hypot(wrist.x - elbow.x, wrist.y - elbow.y);
+        if (length > 0) { dx = (wrist.x - elbow.x) / length; dy = (wrist.y - elbow.y) / length; }
+      }
+      this.zoomBox = { cx: wrist.x * H + dx * body * 0.2, cy: wrist.y * H + dy * body * 0.2, side };
+    }
+    const box = this.zoomBox;
+    const ctx = canvas.getContext('2d');
+    if (!box) { ctx.clearRect(0, 0, px, px); return; }
+    const sx = clamp(box.cx - box.side / 2, 0, v.videoWidth - box.side);
+    const sy = clamp(box.cy - box.side / 2, 0, v.videoHeight - box.side);
+    ctx.drawImage(v, sx, sy, box.side, box.side, 0, 0, px, px);
+  }
+
   dispose() {
     this.cancel();
     this.stopFrames();
@@ -595,6 +644,7 @@ class Clip {
     this.video.load();
     if (this.url) URL.revokeObjectURL(this.url);
     this.el.remove();
+    this.zoomEl.remove();
   }
 }
 
@@ -859,6 +909,7 @@ function render() {
     node.disabled = state.busy;
   }
 
+  dom.zoomStages.replaceChildren(...clips.filter((c) => c?.ready).map((c) => c.zoomEl));
   renderAlignNote();
   renderTransport();
   renderDiff();
@@ -1305,6 +1356,9 @@ dom.hand.addEventListener('click', (e) => {
 });
 
 dom.play.addEventListener('click', togglePlay);
+$('#zoom-prev').addEventListener('click', () => step(-1));
+$('#zoom-next').addEventListener('click', () => step(1));
+$('#zoom-impact').addEventListener('click', () => jump('impact'));
 dom.prev.addEventListener('click', () => step(-1));
 dom.next.addEventListener('click', () => step(1));
 dom.jumpTrophy.addEventListener('click', () => jump('trophy'));

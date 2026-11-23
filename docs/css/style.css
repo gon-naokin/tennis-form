@@ -439,3 +439,14 @@ button.link:disabled { opacity: .45; cursor: not-allowed; }
 }
 #gate-pass:focus-visible { border-color: var(--accent); }
 .gate-error { color: var(--danger); font-weight: 700; }
+
+/* ---- 手元の拡大 ---- */
+.zoom-stages { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); }
+.zoom-stages:empty { display: none; }
+.zoom-figure { position: relative; margin: 0 auto; width: 100%; max-width: 420px; }
+.zoom-figure canvas {
+  display: block; width: 100%; aspect-ratio: 1; background: #000000;
+  border: 2px solid var(--ink); border-radius: 14px;
+}
+.zoom-figure .badge { position: absolute; left: 8px; top: 8px; border: 2px solid var(--surface); }
+.zoom-figure[data-slot="1"] .badge { background: var(--b); }
