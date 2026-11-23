@@ -360,3 +360,131 @@ export function faceFromMarks(tip, throat, left, right, headRatio = RACKET_HEAD_
   const visible = Math.min(1, ratio / headRatio);
   return { ratio, visible, angle: (Math.acos(visible) * 180) / Math.PI };
 }
+
+// ---------------------------------------------------------------- サーブ以外のショット（フォアハンド・バックハンド・ボレー）
+// 腕を頭上に上げないので、サーブの探し方（手首の高さ）は使えない。手首の速さと、振る向きで探す。
+
+const STROKE_MIN_SPEED = 1.2; // 手首の速さがこれ（体の高さ／秒）未満なら、打っていないとみなす
+const STROKE_GAP = 0.7;       // これより間が空いたら別の 1 球（秒）
+const PREP_FROM = 1.2;        // テイクバックを探す範囲：インパクトの何秒前から
+const PREP_TO = 0.1;          // 〜何秒前まで
+
+const median = (values) => {
+  const sorted = [...values].sort((a, b) => a - b);
+  return sorted.length ? sorted[sorted.length >> 1] : null;
+};
+
+/** 体の高さ（足首から鼻まで）の代表値。足元が映っていなければ、胴の長さから見積もる */
+export function bodyHeight(frames) {
+  const heights = [], torsos = [];
+  for (const { pts } of frames) {
+    if (!pts) continue;
+    const nose = pts[LM.NOSE];
+    const ankles = [pts[LM.L_ANKLE], pts[LM.R_ANKLE]].filter((p) => seen(p));
+    if (seen(nose) && ankles.length) heights.push(ankles.reduce((s, p) => s + p.y, 0) / ankles.length - nose.y);
+    const ls = pts[LM.L_SHOULDER], rs = pts[LM.R_SHOULDER], lh = pts[LM.L_HIP], rh = pts[LM.R_HIP];
+    if (seen(ls) && seen(rs) && seen(lh) && seen(rh)) torsos.push(dist(mid(ls, rs), mid(lh, rh)));
+  }
+  const h = median(heights.filter((v) => v > 0.05));
+  if (h) return h;
+  const t = median(torsos.filter((v) => v > 0.02));
+  return t ? t * 2.9 : 0.5; // 胴はおよそ体の高さの 3 分の 1
+}
+
+// 腰の中点（見えている側だけでも可）
+function hipMid(pts) {
+  const hips = [pts[LM.L_HIP], pts[LM.R_HIP]].filter((p) => seen(p));
+  if (!hips.length) return null;
+  return { x: hips.reduce((s, p) => s + p.x, 0) / hips.length, y: hips.reduce((s, p) => s + p.y, 0) / hips.length };
+}
+
+// 腰から見た手首の位置（走りながら打っても、腕の振りだけを取り出すため）
+function wristFromHip(pts, arm) {
+  if (!pts) return null;
+  const w = pts[arm.wrist], h = hipMid(pts);
+  if (!seen(w, MIN_VIS_FAST) || !h) return null;
+  return { x: w.x - h.x, y: w.y - h.y };
+}
+
+/** 手首の速さ（体の高さ／秒）をコマごとに出す。読めないコマは null */
+export function wristSpeed(frames, hand) {
+  const arm = armOf(hand);
+  const body = bodyHeight(frames);
+  const rel = frames.map((f) => wristFromHip(f.pts, arm));
+  const raw = frames.map((f, i) => {
+    if (i === 0 || !rel[i] || !rel[i - 1]) return null;
+    const dt = f.t - frames[i - 1].t;
+    if (!(dt > 0) || dt > MAX_GAP) return null;
+    return dist(rel[i], rel[i - 1]) / dt / body;
+  });
+  return smooth(smooth(raw));
+}
+
+/** インパクト付近で手首が左右どちらへ動いているか（+1 = 画面右、-1 = 左、分からなければ 0） */
+export function swingDirection(frames, hand, index) {
+  const arm = armOf(hand);
+  let before = null, after = null;
+  for (let i = index - 1; i >= Math.max(0, index - 4) && !before; i--) before = wristFromHip(frames[i].pts, arm);
+  for (let i = index + 1; i <= Math.min(frames.length - 1, index + 4) && !after; i++) after = wristFromHip(frames[i].pts, arm);
+  const here = wristFromHip(frames[index]?.pts, arm);
+  const a = before ?? here, b = after ?? here;
+  return a && b ? Math.sign(b.x - a.x) : 0;
+}
+
+/**
+ * 手首が腰から「振る向き」にどれだけ前にあるか（体の高さ比）。正なら体より前、負なら後ろ。
+ * 真横から撮った動画でだけ意味がある。index のコマを測り、振る向きは impactIndex のコマで決める。
+ */
+export function strokeOffset(frames, hand, index, impactIndex = index) {
+  if (index == null || impactIndex == null) return null;
+  const rel = wristFromHip(frames[index]?.pts, armOf(hand));
+  const dir = swingDirection(frames, hand, impactIndex);
+  if (!rel || !dir) return null;
+  return (rel.x * dir) / bodyHeight(frames);
+}
+
+// テイクバック：インパクトの前で、手首がいちばん後ろ（振る向きと逆側）にある瞬間
+function findPrep(frames, hand, impact) {
+  const arm = armOf(hand);
+  const dir = swingDirection(frames, hand, impact);
+  if (!dir) return null;
+  const tImp = frames[impact].t;
+  let best = null, bestValue = Infinity;
+  for (let i = impact - 1; i >= 0; i--) {
+    const back = tImp - frames[i].t;
+    if (back < PREP_TO) continue;
+    if (back > PREP_FROM) break;
+    const rel = wristFromHip(frames[i].pts, arm);
+    if (rel && rel.x * dir < bestValue) { bestValue = rel.x * dir; best = i; }
+  }
+  return best;
+}
+
+/**
+ * ストローク・ボレーを探す。手首がいちばん速い瞬間をインパクト、その前でいちばん後ろへ引いた瞬間を
+ * テイクバックとする。戻り値の形はサーブと同じ（trophy にテイクバックのコマが入る）。
+ */
+export function findStrokes(frames, hand) {
+  const speed = wristSpeed(frames, hand);
+  const top = speed.reduce((m, v) => (v != null && v > m ? v : m), 0);
+  if (top < STROKE_MIN_SPEED) return [];
+  const floor = Math.max(STROKE_MIN_SPEED, top * 0.5);
+  const peaks = [];
+  for (let i = 1; i < speed.length - 1; i++) {
+    const v = speed[i];
+    if (v == null || v < floor) continue;
+    if (v < (speed[i - 1] ?? 0) || v <= (speed[i + 1] ?? 0)) continue;
+    const last = peaks[peaks.length - 1];
+    if (last != null && frames[i].t - frames[last].t < STROKE_GAP) {
+      if (v > speed[last]) peaks[peaks.length - 1] = i; // 近すぎる山は、速いほうだけ残す
+    } else {
+      peaks.push(i);
+    }
+  }
+  return peaks.map((i) => ({ impact: i, trophy: findPrep(frames, hand, i), manual: false }));
+}
+
+/** 指定したコマをインパクトとするストロークを作る（手で位置を決めたとき用） */
+export function strokeAt(frames, hand, impact) {
+  return { impact, trophy: findPrep(frames, hand, impact), manual: true };
+}

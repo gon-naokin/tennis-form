@@ -11,7 +11,7 @@
 // 以前あった「トロフィーポーズでの利き腕の肘の高さ」は外した。膝が最も曲がった瞬間のプロの値が目安（80° 以上）に
 // まったく届かず（中央値 20〜65°）、この瞬間に肘が肩の高さにあるという前提が成り立たなかったため。
 
-import { contactOffset } from './pose-math.js';
+import { contactOffset, strokeOffset } from './pose-math.js';
 
 export const VIEWS = { side: '横から', back: '後ろから' };
 
@@ -164,28 +164,149 @@ export const CHECKS = [
   },
 ];
 
+// ---------------------------------------------------------------- ショットの種類ごとのチェック
+
+export const SHOTS = { serve: 'サーブ', smash: 'スマッシュ', forehand: 'フォアハンド', backhand: 'バックハンド', volley: 'ボレー' };
+
+// 頭上で打つショット。サーブと同じ探し方（手首がいちばん高い瞬間）と場面の名前を使う
+export const OVERHEAD = new Set(['serve', 'smash']);
+
+/** 2 つの場面の呼び名。頭上のショットは「トロフィーポーズ」、それ以外は「テイクバック」 */
+export function momentNames(shot) {
+  return { trophy: OVERHEAD.has(shot) ? 'トロフィーポーズ' : 'テイクバック', impact: 'インパクト' };
+}
+
+// サーブ以外の目安。プロのデータがないので、一般的な指導内容をもとにした仮の値。
+export const STROKE_GUIDE = {
+  prepKnee: { good: 150, shallow: 165 }, // テイクバックでの膝の角度
+  front: { good: 10, near: 0 },          // 打点が腰より前にある量（体の高さ比 %）
+  volleyFront: { good: 5, near: 0 },
+  volleyPrep: { good: -10 },             // ボレーのテイクバックで、手が腰より後ろへ行ってよい量
+  volleyKnee: { good: 160 },
+};
+
+const SIDE_ONLY = (view) => (view === 'back' ? '前後の位置は、真横から撮った動画で測れます。' : null);
+
+function frontCheck(guide) {
+  return {
+    id: 'impact-front',
+    moment: 'impact',
+    title: '打点の前後',
+    unit: '%',
+    digits: 0,
+    target: `目安 腰より ${guide.good}% 以上 前（仮）`,
+    naText: SIDE_ONLY,
+    measure: ({ frames, serve, hand, view }) => {
+      if (view !== 'side') return null;
+      const offset = strokeOffset(frames, hand, serve.impact);
+      return offset == null ? null : offset * 100;
+    },
+    judge: (v) => {
+      if (v >= guide.good) return { status: 'good', text: '体より前でボールをとらえています。' };
+      if (v >= guide.near) return { status: 'hint', text: '打点が体に近めです。もう少し前でとらえると、力が伝わりやすくなります。' };
+      return { status: 'hint', text: '打点が体より後ろです。振り遅れているかもしれません。早めに準備してみましょう。' };
+    },
+  };
+}
+
+const GROUNDSTROKE_CHECKS = [
+  {
+    id: 'prep-knee',
+    moment: 'trophy',
+    title: '膝の曲げ',
+    unit: '°',
+    digits: 0,
+    target: `目安 ${STROKE_GUIDE.prepKnee.good}° 以下（仮）`,
+    measure: ({ series, serve }) =>
+      serve.trophy == null ? null : smaller(series.kneeL[serve.trophy], series.kneeR[serve.trophy]),
+    judge: (v) => {
+      if (v <= STROKE_GUIDE.prepKnee.good) return { status: 'good', text: '膝を曲げて、打つ前の「ため」を作れています。' };
+      if (v <= STROKE_GUIDE.prepKnee.shallow) return { status: 'hint', text: '膝の曲げが浅めです。もう少し腰を落とすと、下半身の力を使いやすくなります。' };
+      return { status: 'hint', text: '膝がほとんど伸びたままです。腰を落として構えてみましょう。' };
+    },
+  },
+  frontCheck(STROKE_GUIDE.front),
+  {
+    // 肘を曲げて打つ型も伸ばして打つ型もあるので、良し悪しは決めない
+    id: 'impact-elbow-info',
+    moment: 'impact',
+    title: '肘の角度',
+    unit: '°',
+    digits: 0,
+    target: '曲げて打つ型も、伸ばして打つ型もあります',
+    measure: ({ frames, series, serve }) => series.elbow[serve.impact] ?? maxAround(frames, series.elbow, serve.impact, IMPACT_WINDOW),
+    judge: (v) => ({ status: 'info', text: v >= 150 ? '肘を伸ばしてとらえています。' : '肘を曲げてとらえています。' }),
+  },
+];
+
+const VOLLEY_CHECKS = [
+  {
+    id: 'prep-compact',
+    moment: 'trophy',
+    title: 'テイクバックの大きさ',
+    unit: '%',
+    digits: 0,
+    target: `目安 腰より後ろへ ${-STROKE_GUIDE.volleyPrep.good}% まで（仮）`,
+    naText: SIDE_ONLY,
+    measure: ({ frames, serve, hand, view }) => {
+      if (view !== 'side' || serve.trophy == null) return null;
+      const offset = strokeOffset(frames, hand, serve.trophy, serve.impact);
+      return offset == null ? null : offset * 100;
+    },
+    judge: (v) => (v >= STROKE_GUIDE.volleyPrep.good
+      ? { status: 'good', text: 'ラケットを引きすぎず、コンパクトに構えられています。' }
+      : { status: 'hint', text: '手を体の後ろまで引いています。ボレーは体の前で小さく構えてみましょう。' }),
+  },
+  frontCheck(STROKE_GUIDE.volleyFront),
+  {
+    id: 'impact-knee-bend',
+    moment: 'impact',
+    title: '膝の曲げ',
+    unit: '°',
+    digits: 0,
+    target: `目安 ${STROKE_GUIDE.volleyKnee.good}° 以下（仮）`,
+    measure: ({ series, serve }) => smaller(series.kneeL[serve.impact], series.kneeR[serve.impact]),
+    judge: (v) => (v <= STROKE_GUIDE.volleyKnee.good
+      ? { status: 'good', text: '膝を曲げて、低い姿勢で打てています。' }
+      : { status: 'hint', text: '膝が伸びています。膝を曲げてボールの高さに合わせると、面が安定します。' }),
+  },
+];
+
+const byId = (id) => CHECKS.find((c) => c.id === id);
+
+/** そのショットで見るチェック項目 */
+export function checksFor(shot) {
+  if (shot === 'smash') return ['trophy-toss', 'impact-elbow', 'impact-reach', 'impact-contact'].map(byId);
+  if (shot === 'forehand' || shot === 'backhand') return GROUNDSTROKE_CHECKS;
+  if (shot === 'volley') return VOLLEY_CHECKS;
+  return CHECKS;
+}
+
 /**
- * サーブ 1 本を評価する。
+ * ショット 1 本を評価する（名前は最初にサーブ専用だったころのまま）。
  * @param {{ frames: {t:number, pts:object[]|null}[], series: Record<string,(number|null)[]>, serve: {impact:number, trophy:number|null},
- *           view?: 'side'|'back', hand?: 'right'|'left', type?: keyof SERVE_TYPES }} input
+ *           view?: 'side'|'back', hand?: 'right'|'left', type?: keyof SERVE_TYPES, shot?: keyof SHOTS }} input
  * @returns {{ id, moment, momentLabel, title, target, unit, digits, value, valueText, status: 'good'|'hint'|'info'|'na', text }[]}
  */
-export function evaluateServe({ frames, series, serve, view = 'side', hand = 'right', type = 'unset' }) {
-  return CHECKS.map((check) => {
+export function evaluateServe({ frames, series, serve, view = 'side', hand = 'right', type = 'unset', shot = 'serve' }) {
+  const names = momentNames(shot);
+  return checksFor(shot).map((check) => {
     const value = check.measure({ frames, series, serve, hand, view });
     const base = {
       id: check.id,
       moment: check.moment,
-      momentLabel: MOMENT_LABEL[check.moment],
+      // サーブ・スマッシュのインパクトは前後の最大値で見ているので、その断り書き付きの名前にする
+      momentLabel: OVERHEAD.has(shot) ? MOMENT_LABEL[check.moment] : names[check.moment],
       title: check.title,
       target: typeof check.target === 'function' ? check.target(view) : check.target,
       unit: check.unit,
       digits: check.digits,
     };
     if (value == null) {
-      const text = check.moment === 'trophy' && serve.trophy == null
-        ? 'トロフィーポーズを見つけられなかったため、測れませんでした。'
-        : '測れませんでした。体の一部が映っていないか、うまく読み取れていません。';
+      const text = check.naText?.(view)
+        ?? (check.moment === 'trophy' && serve.trophy == null
+          ? `${names.trophy}を見つけられなかったため、測れませんでした。`
+          : '測れませんでした。体の一部が映っていないか、うまく読み取れていません。');
       return { ...base, value: null, valueText: '—', status: 'na', text };
     }
     return { ...base, value, valueText: `${value.toFixed(check.digits)}${check.unit}`, ...check.judge(value, view, type) };
@@ -205,6 +326,11 @@ const DIFF_TEXT = {
   'impact-contact': (d, view) => (view === 'back'
     ? (d > 0 ? 'B のほうが利き腕側で打っています。' : 'B のほうが頭の真上寄り（反対側）で打っています。')
     : (d > 0 ? 'B のほうが前（ネット側）で打っています。' : 'B のほうが後ろ（頭の真上寄り）で打っています。')),
+  'prep-knee': (d) => (d < 0 ? 'B のほうが膝を深く曲げています。' : 'A のほうが膝を深く曲げています。'),
+  'impact-front': (d) => (d > 0 ? 'B のほうが前で打っています。' : 'B のほうが体の近く（後ろ寄り）で打っています。'),
+  'impact-elbow-info': (d) => (d > 0 ? 'B のほうが肘を伸ばして打っています。' : 'A のほうが肘を伸ばして打っています。'),
+  'prep-compact': (d) => (d > 0 ? 'B のほうがコンパクトに構えています。' : 'A のほうがコンパクトに構えています。'),
+  'impact-knee-bend': (d) => (d < 0 ? 'B のほうが膝を曲げています。' : 'A のほうが膝を曲げています。'),
 };
 
 /**

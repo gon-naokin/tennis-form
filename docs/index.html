@@ -7,7 +7,7 @@
 <meta name="theme-color" content="#332977">
 <link rel="icon" href="img/icon.png">
 <link rel="apple-touch-icon" href="img/icon.png">
-<title>サーブ フォームチェック | テニス班</title>
+<title>テニス フォームチェック | テニス班</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&display=swap">
@@ -23,7 +23,7 @@
       <img class="char bob" src="img/cat-serve.png" alt="" width="269" height="360">
       <img class="char" src="img/girl-run.png" alt="" width="309" height="334">
     </div>
-    <h1 class="gate-title">サーブ フォームチェック</h1>
+    <h1 class="gate-title">テニス フォームチェック</h1>
     <p class="muted" id="gate-loading">読み込んでいます…</p>
     <form id="gate-form" autocomplete="off" hidden>
       <label class="gate-lead" for="gate-pass">あいことばを入れてね</label>
@@ -38,7 +38,7 @@
   <div class="container top-inner">
     <div>
       <p class="eyebrow">テニス班</p>
-      <h1>サーブ フォームチェック</h1>
+      <h1>テニス フォームチェック</h1>
       <p class="lead">動画から骨格を読み取り、肘や膝の角度を数字で見られます。</p>
     </div>
     <img class="char char-top" src="img/girl-swing.png" alt="" width="293" height="360">
@@ -62,7 +62,7 @@
   <section class="card" id="start">
     <div class="say say-hero">
       <img class="char bob" src="img/cat-serve.png" alt="" width="269" height="360">
-      <p class="bubble">サーブの動画をえらんでね！<br><span class="bubble-sub">1〜2 本、10〜15 秒くらいがちょうどいいよ。</span></p>
+      <p class="bubble">動画をえらんでね！<br><span class="bubble-sub">サーブでもストロークでも OK。10〜15 秒くらいがちょうどいいよ。</span></p>
     </div>
     <h2 class="visually-hidden">動画を選ぶ</h2>
     <button type="button" class="btn primary big" id="pick">動画を選ぶ</button>
@@ -73,7 +73,9 @@
         <li>スマホを固定して、真横（ベースラインの延長）か真後ろから撮り、動画の下の「向き」を合わせる</li>
         <li>膝の曲がりを見たいときは後ろから。横からだと膝がカメラの方へ曲がるので、浅く見える</li>
         <li>スマホは縦向きにして、頭の上に伸ばした腕から足元まで全身を入れる</li>
+        <li>動画の下の「ショット」で、サーブ・スマッシュ・フォアハンド・バックハンド・ボレーを選ぶ</li>
         <li>フラット・スライス・スピンは別々の動画に撮り、動画の下の「種類」を選ぶ</li>
+        <li>ストロークやボレーの打点の前後は、打つ方向に対して真横から撮ると測れる</li>
         <li>打点の位置は、前後は横から、左右は後ろからの動画で分かる</li>
         <li>映るのは 1 人だけにする</li>
         <li>明るい場所で、体と背景の色がはっきり分かれるようにする</li>
@@ -92,7 +94,7 @@
           <button type="button" class="btn" id="jump-trophy" data-ctl aria-pressed="false">トロフィーポーズ</button>
           <button type="button" class="btn" id="jump-impact" data-ctl aria-pressed="false">インパクト</button>
         </div>
-        <p class="muted small" id="serve-note" hidden>サーブの動きを自動では見つけられませんでした。インパクトの瞬間までコマ送りして、動画の下の「ここをインパクトにする」を押してください。</p>
+        <p class="muted small" id="serve-note" hidden>ショットの動きを自動では見つけられませんでした。動画の下の「ショット」が合っているか確かめるか、インパクトの瞬間までコマ送りして、動画の下の「ここをインパクトにする」を押してください。</p>
         <div class="row play">
           <button type="button" class="btn" id="prev" data-ctl aria-label="1 コマ戻る">◀ コマ</button>
           <button type="button" class="btn primary" id="play" data-ctl>▶ 再生</button>
@@ -178,7 +180,7 @@
           <h2><label for="metric">動きの変化</label></h2>
           <select id="metric"></select>
           <div class="seg" id="zoom" role="group" aria-label="グラフの範囲">
-            <button type="button" class="chip" data-zoom="serve" aria-pressed="true">サーブ前後</button>
+            <button type="button" class="chip" data-zoom="serve" aria-pressed="true">インパクト前後</button>
             <button type="button" class="chip" data-zoom="all" aria-pressed="false">全体</button>
           </div>
         </div>

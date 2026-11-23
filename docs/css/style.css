@@ -409,7 +409,7 @@ button.link:disabled { opacity: .45; cursor: not-allowed; }
   .clip-foot { gap: 4px; }
   .clip-foot .link { margin-left: 0; }
   .clip-opts { gap: 4px; }
-  .clip-opts label { flex: 1 1 100%; display: grid; grid-template-columns: 2.6em 1fr; align-items: center; }
+  .clip-opts label { flex: 1 1 100%; display: grid; grid-template-columns: 4.2em 1fr; align-items: center; }
   .clip-opts select { width: 100%; min-width: 0; margin-left: 0; padding-inline: 6px; }
   .stages.two .clip-opts select { font-size: .78rem; }
   .transport { gap: 10px; }
@@ -456,3 +456,6 @@ button.link:disabled { opacity: .45; cursor: not-allowed; }
 .zoom-figure.is-measuring canvas { cursor: crosshair; outline: 3px solid var(--pop); outline-offset: 2px; touch-action: none; }
 .zoom-result { margin-top: 6px; font-weight: 700; font-size: .95rem; text-align: center; min-height: 1.4em; }
 .zoom-result:empty { display: none; }
+
+/* ショットによって出し分ける欄（「種類」はサーブのときだけ） */
+.clip-opts [data-only][hidden] { display: none; }

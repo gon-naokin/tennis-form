@@ -2,10 +2,10 @@
 // 動画はどこにも送らない。外から読み込むのは骨格モデル（MediaPipe）だけ。
 
 import {
-  METRICS, BONES, JOINTS, LM, armOf, toPoints, buildSeries, findServes, serveAt,
+  METRICS, BONES, JOINTS, LM, armOf, toPoints, buildSeries, findServes, serveAt, findStrokes, strokeAt,
   valueAt, poseAt, nearestIndex, frameStep, missingTimes, standardPose, faceFromMarks,
 } from './pose-math.js';
-import { evaluateServe, summarize, compareServes, VIEWS, SERVE_TYPES } from './coaching.js';
+import { evaluateServe, summarize, compareServes, VIEWS, SERVE_TYPES, SHOTS, OVERHEAD, momentNames } from './coaching.js';
 import { LineChart } from './chart.js';
 import { drawPoseOverlay } from './overlay.js';
 
@@ -89,6 +89,7 @@ const dom = {
 const state = {
   hand: readPref('hand') === 'left' ? 'left' : 'right',
   view: readPref('view') in VIEWS ? readPref('view') : 'side', // 次に読み込む動画の「向き」の初期値（最後に選んだもの）
+  shot: readPref('shot') in SHOTS ? readPref('shot') : 'serve', // 同じく「ショット」の初期値
   rate: 0.25,
   playing: false,
   busy: false,
@@ -251,7 +252,8 @@ const CLIP_HTML = `
     <div class="serves" role="group" aria-label="サーブを選ぶ"></div>
     <button type="button" class="link" data-act="set-impact">ここをインパクトにする</button>
     <div class="clip-opts">
-      <label>種類 <select data-opt="type"></select></label>
+      <label>ショット <select data-opt="shot"></select></label>
+      <label data-only="serve">種類 <select data-opt="type"></select></label>
       <label>向き <select data-opt="view"></select></label>
     </div>
     <p class="clip-note muted small" hidden></p>
@@ -284,13 +286,15 @@ class Clip {
     this.zoomCanvas = this.zoomEl.querySelector('canvas');
     this.zoomBox = null; // 直前に映した範囲。手首を読めないコマでは同じ範囲を映し続ける
 
+    this.shot = state.shot;
     this.type = 'unset';
     this.view = state.view;
-    for (const [opt, choices] of [['type', SERVE_TYPES], ['view', VIEWS]]) {
+    for (const [opt, choices] of [['shot', SHOTS], ['type', SERVE_TYPES], ['view', VIEWS]]) {
       const select = $(`[data-opt="${opt}"]`, this.el);
       for (const [value, label] of Object.entries(choices)) select.append(new Option(label, value));
       select.value = this[opt];
     }
+    this.syncOpts();
 
     this.frames = [];
     this.series = null;
@@ -315,6 +319,12 @@ class Clip {
       if (!opt) return;
       this[opt] = e.target.value;
       if (opt === 'view') { state.view = this.view; writePref('view', this.view); }
+      if (opt === 'shot') {
+        state.shot = this.shot;
+        writePref('shot', this.shot);
+        this.syncOpts();
+        if (this.ready) this.recompute(); // ショットで山場の探し方が変わるので、探し直す
+      }
       render();
     });
     for (const type of ['play', 'pause', 'ended']) {
@@ -554,13 +564,20 @@ class Clip {
   /** 利き手が変わったときなどに、角度とサーブ位置を計算し直す */
   recompute() {
     this.series = buildSeries(this.frames, state.hand);
-    this.serves = findServes(this.frames, state.hand);
+    // サーブ・スマッシュは手首がいちばん高い瞬間、それ以外は手首がいちばん速い瞬間をインパクトとして探す
+    this.serves = OVERHEAD.has(this.shot) ? findServes(this.frames, state.hand) : findStrokes(this.frames, state.hand);
     this.sel = 0;
+  }
+
+  // 「種類（フラットなど）」はサーブのときだけ出す
+  syncOpts() {
+    for (const label of this.el.querySelectorAll('[data-only]')) label.hidden = label.dataset.only !== this.shot;
   }
 
   setImpactHere() {
     if (!this.ready) return;
-    const serve = serveAt(this.frames, nearestIndex(this.frames, this.shownT));
+    const index = nearestIndex(this.frames, this.shownT);
+    const serve = OVERHEAD.has(this.shot) ? serveAt(this.frames, index) : strokeAt(this.frames, state.hand, index);
     if (this.serves.length) this.serves[this.sel] = serve;
     else { this.serves = [serve]; this.sel = 0; }
     render();
@@ -579,7 +596,7 @@ class Clip {
         b.dataset.act = 'serve';
         b.dataset.index = String(i);
         b.setAttribute('aria-pressed', String(i === this.sel));
-        b.textContent = `サーブ ${i + 1}`;
+        b.textContent = `${SHOTS[this.shot]} ${i + 1}`;
         this.servesEl.append(b);
       });
     }
@@ -981,8 +998,18 @@ function render() {
 
 // 表の見出しなどに添える、サーブの種類（未設定なら何も付けない）
 const TYPE_SHORT = { flat: 'フラット', slice: 'スライス', spin: 'スピン' };
+const SHOT_SHORT = { smash: 'スマッシュ', forehand: 'フォア', backhand: 'バック', volley: 'ボレー' };
+// その動画が何のショットか（サーブなら種類）。未設定のサーブは空
+function kindOf(clip) {
+  return clip.shot === 'serve' ? (TYPE_SHORT[clip.type] ?? '') : SHOT_SHORT[clip.shot];
+}
 function typeSuffix(clip) {
-  return clip.type === 'unset' ? '' : `（${TYPE_SHORT[clip.type]}）`;
+  const kind = kindOf(clip);
+  return kind ? `（${kind}）` : '';
+}
+// 再生ボタンなど共通の表示は、A のショットに合わせる
+function momentName(key) {
+  return momentNames(clips[0]?.shot ?? 'serve')[key];
 }
 
 function renderAlignNote() {
@@ -1022,6 +1049,8 @@ function renderTransport() {
     dom.jumpTrophy.disabled = !hasTrophy;
   }
   dom.serveNote.hidden = hasImpact;
+  dom.jumpTrophy.textContent = momentName('trophy');
+  $('[data-moment="trophy"]', dom.diffMoment).textContent = momentName('trophy');
 }
 
 const STATUS_LABEL = { good: ['◎', '良い'], hint: ['△', '見直し'], info: ['・', '参考'], na: ['—', '測れず'] };
@@ -1065,7 +1094,7 @@ function renderCoach() {
   }
 
   const results = evaluateServe({
-    frames: clip.frames, series: clip.series, serve: clip.serve, view: clip.view, hand: state.hand, type: clip.type,
+    frames: clip.frames, series: clip.series, serve: clip.serve, view: clip.view, hand: state.hand, type: clip.type, shot: clip.shot,
   });
   const { measured, good } = summarize(results);
   if (!measured) {
@@ -1104,7 +1133,7 @@ function renderCoach() {
       if (r.status !== 'na') title.append(node('span', 'coach-value', r.valueText));
       title.append(node('span', 'coach-target', r.target));
       body.append(title, node('p', 'coach-text', r.text));
-      const pro = proLine(r, clip.view);
+      const pro = clip.shot === 'serve' ? proLine(r, clip.view) : []; // プロの値はサーブだけ
       if (pro.length) {
         const line = node('p', 'coach-pro');
         line.append(node('span', 'coach-pro-label', 'プロ'), ...pro.map((text) => node('span', '', text)));
@@ -1152,10 +1181,14 @@ function renderDiff() {
   for (const btn of $$('button', dom.diffMoment)) {
     btn.setAttribute('aria-pressed', String(btn.dataset.moment === state.diffMoment));
   }
-  const comparable = !!a.serve && !!b.serve && a.view === b.view;
+  const comparable = !!a.serve && !!b.serve && a.view === b.view && a.shot === b.shot;
   dom.diffStage.hidden = !comparable;
   if (!a.serve || !b.serve) {
     say(dom.diffChar, dom.diffLead, 'worm', '両方の動画でインパクトの位置が決まると、違いを並べるよ。');
+    return;
+  }
+  if (a.shot !== b.shot) {
+    say(dom.diffChar, dom.diffLead, 'frog-sleep', `ショットが違うから、比べられないよ（A は${SHOTS[a.shot]}、B は${SHOTS[b.shot]}）。同じショットどうしを並べてね。`);
     return;
   }
   if (a.view !== b.view) {
@@ -1164,7 +1197,7 @@ function renderDiff() {
   }
 
   const evaluate = (clip) => evaluateServe({
-    frames: clip.frames, series: clip.series, serve: clip.serve, view: clip.view, hand: state.hand, type: clip.type,
+    frames: clip.frames, series: clip.series, serve: clip.serve, view: clip.view, hand: state.hand, type: clip.type, shot: clip.shot,
   });
   const rows = compareServes(evaluate(a), evaluate(b), a.view);
   const notable = rows.filter((r) => r.notable);
@@ -1207,11 +1240,11 @@ function drawDiffOverlay() {
   dom.diffCanvas.hidden = nothing;
   $('.legend', dom.diffStage).hidden = nothing;
   if (nothing) {
-    dom.diffCanvasNote.textContent = `重ねた図は、足元まで映っている動画どうしで出ます${key === 'trophy' ? '（トロフィーポーズが見つかっていることも必要です）' : ''}。`;
+    dom.diffCanvasNote.textContent = `重ねた図は、足元まで映っている動画どうしで出ます${key === 'trophy' ? `（${momentName('trophy')}が見つかっていることも必要です）` : ''}。`;
     return;
   }
   if (missing.length) {
-    const why = key === 'trophy' ? 'トロフィーポーズが見つからないか、足元まで映っていない' : '足元まで映っていない';
+    const why = key === 'trophy' ? `${momentName('trophy')}が見つからないか、足元まで映っていない` : '足元まで映っていない';
     dom.diffCanvasNote.textContent = `${missing.join(' と ')} は、この瞬間の姿勢を重ねられませんでした（${why}可能性があります）。`;
   }
 
@@ -1243,8 +1276,8 @@ function renderTable() {
   let columns;
   if (b) {
     dom.tableTitle.textContent = 'いまの位置の数値（A と B）';
-    const types = a.type !== 'unset' || b.type !== 'unset' ? `A は${TYPE_SHORT[a.type] ?? '未設定'}、B は${TYPE_SHORT[b.type] ?? '未設定'}。` : '';
-    dom.tableNote.textContent = `${types}「トロフィーポーズ」「インパクト」のボタンを押すと、その瞬間どうしを比べられます。差は B − A です。`;
+    const types = kindOf(a) || kindOf(b) ? `A は${kindOf(a) || 'サーブ'}、B は${kindOf(b) || 'サーブ'}。` : '';
+    dom.tableNote.textContent = `${types}「${momentName('trophy')}」「インパクト」のボタンを押すと、その瞬間どうしを比べられます。差は B − A です。`;
     columns = [
       { head: 'A', cls: 'col-a', live: true, text: (m) => formatValue(m, nowOf(a, m)) },
       { head: 'B', cls: 'col-b', live: true, text: (m) => formatValue(m, nowOf(b, m)) },
@@ -1263,7 +1296,7 @@ function renderTable() {
     dom.tableNote.textContent = '「いま」は動画の現在位置の値です。';
     columns = [
       { head: 'いま', live: true, text: (m) => formatValue(m, nowOf(a, m)) },
-      { head: 'トロフィー', live: false, text: (m) => formatValue(m, keyOf(a, m, 'trophy')) },
+      { head: momentName('trophy').replace('ポーズ', ''), live: false, text: (m) => formatValue(m, keyOf(a, m, 'trophy')) },
       { head: 'インパクト', live: false, text: (m) => formatValue(m, keyOf(a, m, 'impact')) },
     ];
   }
@@ -1329,7 +1362,7 @@ function renderChart() {
     ? [Math.max(0, impact - ZOOM_BEFORE), Math.min(a.dur, impact + ZOOM_AFTER)]
     : [0, a.dur];
   const markers = [];
-  if (trophy != null) markers.push({ t: trophy, label: 'トロフィー', side: 'left' });
+  if (trophy != null) markers.push({ t: trophy, label: momentName('trophy').replace('ポーズ', ''), side: 'left' });
   if (impact != null) markers.push({ t: impact, label: 'インパクト', side: 'right' });
 
   chart.setData({
