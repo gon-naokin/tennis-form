@@ -417,3 +417,25 @@ button.link:disabled { opacity: .45; cursor: not-allowed; }
   .diff-values { display: block; }
   .diff-values .sw:first-child { margin-left: 0; }
 }
+
+/* ---- 入口のパスワード画面 ---- */
+.locked .top, .locked main { display: none; }
+.gate { min-height: 100vh; min-height: 100dvh; display: grid; place-items: center; padding: 24px 16px; }
+.gate[hidden] { display: none; }
+.gate-card {
+  width: min(100%, 380px); display: grid; gap: 14px; justify-items: center; text-align: center;
+  background: var(--surface); border: 2px solid var(--ink); border-radius: var(--radius); box-shadow: var(--shadow);
+  padding: 24px 20px;
+}
+.gate-cast { display: flex; align-items: flex-end; justify-content: center; gap: 10px; }
+.gate-cast .char { height: 72px; width: auto; }
+.gate-cast .char:nth-child(2) { height: 104px; }
+.gate-title { font-size: 1.35rem; }
+#gate-form { display: grid; gap: 10px; width: 100%; }
+.gate-lead { font-weight: 700; }
+#gate-pass {
+  width: 100%; min-height: 52px; padding: 8px 14px; text-align: center; font-size: 1.1rem;
+  background: var(--surface); color: var(--fg); border: 2px solid var(--line); border-radius: 14px;
+}
+#gate-pass:focus-visible { border-color: var(--accent); }
+.gate-error { color: var(--danger); font-weight: 700; }

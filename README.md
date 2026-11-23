@@ -74,7 +74,7 @@ python -m http.server 8788 --directory tennis-form/docs
 角度計算、サーブ検出、フォームのチェックの判定、プロのデータの集計のテストです。
 
 ```
-node --test tennis-form/tests/pose-math.test.mjs tennis-form/tests/coaching.test.mjs tennis-form/tests/pro-reference.test.mjs tennis-form/tests/compare.test.mjs
+node --test tennis-form/tests/pose-math.test.mjs tennis-form/tests/coaching.test.mjs tennis-form/tests/pro-reference.test.mjs tennis-form/tests/compare.test.mjs tennis-form/tests/gate.test.mjs
 ```
 
 ## GitHub Pages で公開する
@@ -111,3 +111,17 @@ node --test tennis-form/tests/pose-math.test.mjs tennis-form/tests/coaching.test
 - 小さい文字のグレーは、パレットのサブグレーより少し濃くしています（白地で読みやすくするため）。
 - キャラクターの絵は `docs/img/` にあります。開始画面、解析中の帯、フォームのチェック、A と B の違い、エラー表示、フッターに出ます。結果に応じて絵と一言が変わります。
 - 動きを減らす設定の端末では、キャラクターの動きを止めます。
+
+## 入口のパスワード
+
+開いたときにパスワードを聞く画面を付けられます。設定は次のコマンドで行います（パスワードを 2 回入力します）。
+
+```
+node tennis-form/tools/set-password.mjs
+```
+
+- 書き換わるのは `docs/js/config.js` で、入るのはパスワードそのものではなく照合用の値です。公開（commit・push）すると反映されます。
+- パスワードなしに戻すには `node tennis-form/tools/set-password.mjs --clear` を実行します。
+- 一度通った端末では、次回から聞かれません。パスワードを変えると、全員がもう一度聞かれます。
+- **本当の鍵にはなりません。** 公開されている静的なページなので、中身のファイルは誰でも取得でき、詳しい人は入口を回避できます。URL を知っただけの人がそのまま使えないようにするためのものです。
+- 照合用の値は公開されるので、短いパスワードや他で使っているパスワードは避けてください。

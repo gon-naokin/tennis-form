@@ -13,7 +13,26 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&display=swap">
 <link rel="stylesheet" href="css/style.css">
 </head>
-<body>
+<body class="locked">
+
+<!-- 入口。パスワードが未設定か、この端末で一度通っていれば js/gate.js がすぐに閉じる -->
+<div class="gate" id="gate">
+  <div class="gate-card">
+    <div class="gate-cast" aria-hidden="true">
+      <img class="char" src="img/bear.png" alt="" width="307" height="360">
+      <img class="char bob" src="img/cat-serve.png" alt="" width="269" height="360">
+      <img class="char" src="img/girl-run.png" alt="" width="309" height="334">
+    </div>
+    <h1 class="gate-title">サーブ フォームチェック</h1>
+    <p class="muted" id="gate-loading">読み込んでいます…</p>
+    <form id="gate-form" autocomplete="off" hidden>
+      <label class="gate-lead" for="gate-pass">あいことばを入れてね</label>
+      <input id="gate-pass" type="password" autocomplete="current-password" placeholder="パスワード" required>
+      <button type="submit" class="btn primary big" id="gate-submit">入る</button>
+      <p class="gate-error" id="gate-error" role="alert" hidden>パスワードが違います。</p>
+    </form>
+  </div>
+</div>
 
 <header class="top">
   <div class="container top-inner">
@@ -176,6 +195,7 @@
   </footer>
 </main>
 
+<script type="module" src="js/gate.js"></script>
 <script type="module" src="js/app.js"></script>
 </body>
 </html>
