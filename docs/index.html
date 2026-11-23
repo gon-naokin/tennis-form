@@ -117,7 +117,12 @@
           <button type="button" class="btn primary" id="zoom-impact" data-ctl>インパクトへ</button>
           <button type="button" class="btn" id="zoom-next" data-ctl aria-label="1 コマ進む">コマ ▶</button>
         </div>
+        <div class="row">
+          <button type="button" class="btn small" id="zoom-measure" data-ctl aria-pressed="false">面の向きを測る</button>
+          <span class="zoom-guide" id="zoom-guide" hidden></span>
+        </div>
         <p class="muted small">ラケットを持つ手のまわりを大きく映しています。コマ送りでボールが当たる瞬間を探して、面の向きを確かめてください。スロー撮影（240 コマ／秒など）だと、面がぶれずに写ります。</p>
+        <p class="muted small">「面の向きを測る」は、面を正面から見たときと比べて、どれだけ細く見えているかから向きを出します。面がどちら側を向いているかまでは分からないので、絵と合わせて見てください。</p>
       </section>
 
       <section class="card diff" id="diff" hidden>

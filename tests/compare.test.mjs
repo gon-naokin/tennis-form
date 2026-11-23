@@ -108,3 +108,45 @@ test('standardPose / facingDirection: 後ろからは打つ側の肩が右。そ
   assert.equal(standardPose(null, 'right', 'side'), null);
   assert.equal(facingDirection(null, 'right', 'side'), 0);
 });
+
+// 面の向き（4 点タップ）
+import { faceFromMarks, RACKET_HEAD_RATIO } from '../docs/js/pose-math.js';
+
+test('faceFromMarks: 正面なら 100%・0°、細く見えるほど角度が大きい', () => {
+  const k = RACKET_HEAD_RATIO;
+  const marks = (visible, rotate = 0, scale = 100, ox = 50, oy = 80) => {
+    // 縦 1・横 k×visible の楕円の 4 端を、rotate だけ回して scale 倍する
+    const c = Math.cos(rotate), s = Math.sin(rotate);
+    const at = (x, y) => ({ x: ox + (x * c - y * s) * scale, y: oy + (x * s + y * c) * scale });
+    const w = (k * visible) / 2;
+    return [at(0, -0.5), at(0, 0.5), at(-w, 0), at(w, 0)];
+  };
+  const front = faceFromMarks(...marks(1));
+  near(front.visible, 1, 1e-9);
+  near(front.angle, 0, 1e-6);
+  near(front.ratio, k, 1e-9);
+
+  const half = faceFromMarks(...marks(0.5));
+  near(half.visible, 0.5, 1e-9);
+  near(half.angle, 60, 1e-6);
+
+  near(faceFromMarks(...marks(Math.cos(Math.PI / 6))).angle, 30, 1e-6);
+  near(faceFromMarks(...marks(0.02)).angle, 88.85, 0.01); // ほぼ真横
+});
+
+test('faceFromMarks: ラケットの傾き・大きさ・位置・左右の端の順番によらない', () => {
+  const base = faceFromMarks({ x: 0, y: 0 }, { x: 0, y: 100 }, { x: -20, y: 50 }, { x: 20, y: 50 });
+  const rotated = faceFromMarks({ x: 100, y: 0 }, { x: 0, y: 0 }, { x: 50, y: -20 }, { x: 50, y: 20 });
+  const scaled = faceFromMarks({ x: 5, y: 5 }, { x: 5, y: 305 }, { x: -55, y: 155 }, { x: 65, y: 155 });
+  const swapped = faceFromMarks({ x: 0, y: 0 }, { x: 0, y: 100 }, { x: 20, y: 50 }, { x: -20, y: 50 });
+  const offAxis = faceFromMarks({ x: 0, y: 0 }, { x: 0, y: 100 }, { x: -20, y: 40 }, { x: 20, y: 60 }); // 横の 2 点の高さがずれても幅は同じ
+  for (const other of [rotated, scaled, swapped, offAxis]) near(other.visible, base.visible, 1e-9);
+  near(base.ratio, 0.4, 1e-9);
+});
+
+test('faceFromMarks: 正面より太く付けてしまっても 100% で頭打ち。縦が 0 なら null', () => {
+  const wide = faceFromMarks({ x: 0, y: 0 }, { x: 0, y: 100 }, { x: -50, y: 50 }, { x: 50, y: 50 });
+  assert.equal(wide.visible, 1);
+  assert.equal(wide.angle, 0);
+  assert.equal(faceFromMarks({ x: 1, y: 1 }, { x: 1, y: 1 }, { x: 0, y: 0 }, { x: 2, y: 2 }), null);
+});

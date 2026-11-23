@@ -450,3 +450,9 @@ button.link:disabled { opacity: .45; cursor: not-allowed; }
 }
 .zoom-figure .badge { position: absolute; left: 8px; top: 8px; border: 2px solid var(--surface); }
 .zoom-figure[data-slot="1"] .badge { background: var(--b); }
+
+/* ---- 面の向きを測る ---- */
+.zoom-guide { font-weight: 700; font-size: .9rem; }
+.zoom-figure.is-measuring canvas { cursor: crosshair; outline: 3px solid var(--pop); outline-offset: 2px; touch-action: none; }
+.zoom-result { margin-top: 6px; font-weight: 700; font-size: .95rem; text-align: center; min-height: 1.4em; }
+.zoom-result:empty { display: none; }

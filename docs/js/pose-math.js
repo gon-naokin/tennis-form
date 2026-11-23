@@ -337,3 +337,26 @@ export function frameStep(frames) {
   const m = gaps[gaps.length >> 1];
   return Math.min(1 / 10, Math.max(1 / 120, m));
 }
+
+// 一般的なラケットの面（フレームの外側）の、縦に対する横の比。機種で少し違う（おおよそ 0.75〜0.80）。
+export const RACKET_HEAD_RATIO = 0.77;
+
+/**
+ * 画面上でタップした 4 点から、ラケットの面がカメラに対してどれだけ向いているかを出す。
+ * 面を正面から見ると楕円が最も太く見え、向きが変わるほど細く（見える面積が小さく）なることを使う。
+ * 点は { x, y }（単位は何でもよいが、縦横で同じ縮尺であること）。
+ *   tip・throat: 面の先端と根元（縦の両端） / left・right: 面のいちばん幅が広い所の両端
+ * 戻り値: { ratio: 見えている横÷縦, visible: 正面のときを 1 とした面積の割合, angle: 正面からの向きの差（度） }
+ * 縦の長さがそのまま見えている（ラケットが奥や手前に倒れていない）ことを前提にしている。
+ * 面が右を向いているか左を向いているか（表か裏か）は、この計算では分からない。
+ */
+export function faceFromMarks(tip, throat, left, right, headRatio = RACKET_HEAD_RATIO) {
+  const lx = tip.x - throat.x, ly = tip.y - throat.y;
+  const length = Math.hypot(lx, ly);
+  if (!length) return null;
+  // 縦の軸に直角な向きに測った幅
+  const width = Math.abs((right.x - left.x) * (-ly / length) + (right.y - left.y) * (lx / length));
+  const ratio = width / length;
+  const visible = Math.min(1, ratio / headRatio);
+  return { ratio, visible, angle: (Math.acos(visible) * 180) / Math.PI };
+}

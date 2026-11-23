@@ -3,7 +3,7 @@
 
 import {
   METRICS, BONES, JOINTS, LM, armOf, toPoints, buildSeries, findServes, serveAt,
-  valueAt, poseAt, nearestIndex, frameStep, missingTimes, standardPose,
+  valueAt, poseAt, nearestIndex, frameStep, missingTimes, standardPose, faceFromMarks,
 } from './pose-math.js';
 import { evaluateServe, summarize, compareServes, VIEWS, SERVE_TYPES } from './coaching.js';
 import { LineChart } from './chart.js';
@@ -95,6 +95,7 @@ const state = {
   showPose: true,
   coachSlot: 0,       // フォームのチェックを表示する動画（0 = A、1 = B）
   diffMoment: 'impact', // 骨格を重ねて見る瞬間（impact / trophy）
+  measuring: false,     // 「面の向きを測る」でタップを受け付けているか
   metric: 'elbow',
   zoom: 'serve',
 };
@@ -276,7 +277,10 @@ class Clip {
     // 手元の拡大：ラケットを持つ手のまわりを大きく映す（「手元の拡大」欄に並べる）
     this.zoomEl = document.createElement('figure');
     this.zoomEl.className = 'zoom-figure';
-    this.zoomEl.innerHTML = '<span class="badge"></span><canvas aria-label="手元を拡大した映像"></canvas>';
+    this.zoomEl.innerHTML = '<span class="badge"></span><canvas aria-label="手元を拡大した映像"></canvas><figcaption class="zoom-result"></figcaption>';
+    this.zoomResult = this.zoomEl.querySelector('.zoom-result');
+    this.marks = null; // 面の向きを測るためにタップした点 { t: そのコマの時刻, pts: [{x, y}]（絵の幅・高さを 1 とした位置） }
+    this.zoomEl.querySelector('canvas').addEventListener('pointerdown', (e) => this.onZoomTap(e));
     this.zoomCanvas = this.zoomEl.querySelector('canvas');
     this.zoomBox = null; // 直前に映した範囲。手首を読めないコマでは同じ範囲を映し続ける
 
@@ -634,6 +638,61 @@ class Clip {
     const sx = clamp(box.cx - box.side / 2, 0, v.videoWidth - box.side);
     const sy = clamp(box.cy - box.side / 2, 0, v.videoHeight - box.side);
     ctx.drawImage(v, sx, sy, box.side, box.side, 0, 0, px, px);
+    this.drawMarks(ctx, px, t);
+  }
+
+  // 「面の向きを測る」のタップを 1 点ずつ受け取る
+  onZoomTap(e) {
+    if (!state.measuring || !this.ready || state.busy) return;
+    e.preventDefault();
+    pause();
+    const rect = this.zoomCanvas.getBoundingClientRect();
+    const point = { x: (e.clientX - rect.left) / rect.width, y: (e.clientY - rect.top) / rect.height };
+    // 別のコマに移っていたら、または 4 点そろっていたら、最初から付け直す
+    if (!this.marks || this.marks.t !== this.shownT || this.marks.pts.length >= FACE_STEPS.length) {
+      this.marks = { t: this.shownT, pts: [] };
+    }
+    this.marks.pts.push(point);
+    measuringClip = this;
+    this.dirty = true;
+    renderMeasure();
+  }
+
+  // タップした点と、そこから求めた面の輪郭・向きを描く（点を付けたコマを映しているときだけ）
+  drawMarks(ctx, px, t) {
+    const marks = this.marks;
+    if (!marks || marks.t !== t) { this.zoomResult.textContent = ''; return; }
+    const P = marks.pts.map((p) => ({ x: p.x * px, y: p.y * px }));
+    const r = Math.max(4, px / 90);
+    ctx.lineWidth = Math.max(2, px / 220);
+    if (P.length >= 4) {
+      const [tip, throat, left, right] = P;
+      const face = faceFromMarks(tip, throat, left, right);
+      if (face) {
+        const length = Math.hypot(tip.x - throat.x, tip.y - throat.y);
+        ctx.strokeStyle = '#ffd23f';
+        ctx.beginPath();
+        ctx.ellipse((tip.x + throat.x) / 2, (tip.y + throat.y) / 2, length / 2, (face.ratio * length) / 2,
+          Math.atan2(tip.y - throat.y, tip.x - throat.x), 0, Math.PI * 2);
+        ctx.stroke();
+        this.zoomResult.textContent = `見えている面：正面の ${Math.round(face.visible * 100)}%（向きの差 約 ${Math.round(face.angle)}°）`;
+      }
+    } else {
+      this.zoomResult.textContent = '';
+    }
+    P.forEach((p, i) => {
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+      ctx.fillStyle = '#ffd23f';
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(0, 0, 0, 0.7)';
+      ctx.stroke();
+      ctx.fillStyle = '#000000';
+      ctx.font = `700 ${Math.round(r * 1.5)}px system-ui, sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(String(i + 1), p.x, p.y + 0.5);
+    });
   }
 
   dispose() {
@@ -1059,6 +1118,26 @@ function renderCoach() {
   }
 }
 
+// ---------------------------------------------------------------- 面の向きを測る
+
+// タップする順番。面の縦の両端 → 横の両端
+const FACE_STEPS = ['① 面の先端', '② 面の根元（ガットの下の端）', '③ 面の左右どちらかの端', '④ 反対側の端'];
+let measuringClip = null; // 最後にタップした動画（案内の文を出すために覚えておく）
+
+function renderMeasure() {
+  const button = $('#zoom-measure'), guide = $('#zoom-guide');
+  button.setAttribute('aria-pressed', String(state.measuring));
+  button.textContent = state.measuring ? '測るのをやめる' : '面の向きを測る';
+  for (const c of clips) c?.zoomEl.classList.toggle('is-measuring', state.measuring);
+  guide.hidden = !state.measuring;
+  if (!state.measuring) return;
+  const marks = measuringClip?.marks;
+  const count = marks && marks.t === measuringClip.shownT ? marks.pts.length : 0;
+  guide.textContent = count >= FACE_STEPS.length
+    ? '測れました。もう一度タップすると付け直せます。'
+    : `拡大した絵の上で、${FACE_STEPS[count]}をタップ`;
+}
+
 // ---------------------------------------------------------------- A と B の違い
 
 // 2 本そろったときだけ出す。違いの大きい順の一覧と、骨格を重ねた図で、種類による差を目立たせる。
@@ -1359,6 +1438,11 @@ dom.play.addEventListener('click', togglePlay);
 $('#zoom-prev').addEventListener('click', () => step(-1));
 $('#zoom-next').addEventListener('click', () => step(1));
 $('#zoom-impact').addEventListener('click', () => jump('impact'));
+$('#zoom-measure').addEventListener('click', () => {
+  state.measuring = !state.measuring;
+  if (state.measuring) pause();
+  renderMeasure();
+});
 dom.prev.addEventListener('click', () => step(-1));
 dom.next.addEventListener('click', () => step(1));
 dom.jumpTrophy.addEventListener('click', () => jump('trophy'));
